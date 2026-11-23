@@ -501,9 +501,9 @@ jobs:
           cp LICENSE deploy/together/Server/LICENSE
           node --input-type=module -e "import { writeServerLicenseNotices } from './scripts/package-licenses.mjs'; writeServerLicenseNotices('.', 'deploy/together/Server/THIRD-PARTY-NOTICES.txt', 'go', { goos: 'linux', goarch: 'amd64' });"
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -516,7 +516,7 @@ jobs:
           OWNER=$(printf '%s' "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "image=ghcr.io/${OWNER}/piik-together" >> "$GITHUB_OUTPUT"
       - name: Build and push multi-arch server image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./deploy/together/Server
           file: ./deploy/together/Server/Dockerfile
