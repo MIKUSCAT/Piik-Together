@@ -386,6 +386,8 @@ export const en: Record<CopyKey, string> = {
   "host.sourcePicker.browser": "Choose what to share",
   "host.sourcePicker.browserHint": "Choose a source in your browser. Turn on audio if offered.",
   "host.sourcePicker.camera": "Share camera: {title}",
+  "host.sourcePicker.screenUnavailable": "This browser cannot share a screen. Start PC game sharing on your computer; use the viewing link to watch on your phone.",
+  "host.camera.enablePreview": "Enable camera preview",
   "host.camera.denied": "Camera access was not allowed. Allow access, then try again.",
   "host.camera.unavailable": "The camera is unavailable. Check that it is connected and not in use by another app.",
   "host.microphone.settings": "Microphone settings",

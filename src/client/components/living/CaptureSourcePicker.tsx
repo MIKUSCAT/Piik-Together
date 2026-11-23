@@ -113,7 +113,9 @@ export function CaptureSourcePicker({
   const nativeTab = activeTab === "window" || activeTab === "display" || activeTab === "picker";
   useEffect(() => { bodyRef.current?.scrollTo({ top: 0 }); }, [activeTab]);
   const browserCapture = activeTab === "browser";
-  const cameraSources = useCameraSources(activeTab === "camera" && !!onCamera, activeCameraVideo, loadCameras);
+  // A capability fallback may select Camera without the user choosing it.
+  const cameraRequested = activeTab === "camera" && (tab === "camera" || !!activeCameraVideo);
+  const cameraSources = useCameraSources(cameraRequested && !!onCamera, activeCameraVideo, loadCameras);
   const supportsCaptureBorder = nativeTab && nativeSources.kind === "ready" && nativeSources.captureBorderControl === true;
   const issueKey = !nativeTab ? null : nativeSources.kind === "incompatible" ? "native.incompatible"
     : (nativeSources.kind === "unsupported" || nativeSources.kind === "failed")
@@ -237,7 +239,7 @@ export function CaptureSourcePicker({
               <strong>{t("host.sourcePicker.title")}</strong>
             </span>
           )}
-          {activeTab === "camera" || nativeSources.kind !== "browser" ? <Tooltip kind="hint-refresh-sources" text={vis ? undefined : refreshLabel}
+          {(activeTab === "camera" ? cameraRequested : nativeSources.kind !== "browser") ? <Tooltip kind="hint-refresh-sources" text={vis ? undefined : refreshLabel}
             tone={refreshing ? "busy" : undefined}
             motion={refreshing ? "progress" : undefined}
             place="below" align="end">
@@ -359,11 +361,15 @@ export function CaptureSourcePicker({
             </div>
           ) : null}
 
-          {activeTab === "camera" ? <CameraSources {...cameraSources} selected={initialCamera}
+          {activeTab === "camera" ? cameraRequested ? <CameraSources {...cameraSources} selected={initialCamera}
             disabled={selectionDisabled || !onCamera} onSelect={id => {
               cameraSources.cancel();
               onCamera?.(id);
-            }} /> : <>
+            }} /> : <div className="lr-source-picker-status">
+              {tabs.length === 1 && <p>{t("host.sourcePicker.screenUnavailable")}</p>}
+              <Btn icon="camera" title="host.camera.enablePreview" cap="host.camera.enablePreview"
+                disabled={selectionDisabled || !onCamera} onClick={() => setTab("camera")} />
+            </div> : <>
           <div className="lr-source-picker-list">
             {browserCapture ? (
               <button

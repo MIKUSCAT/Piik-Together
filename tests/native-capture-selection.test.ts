@@ -255,7 +255,8 @@ describe("native capture source selection", () => {
     expect(html).not.toContain('role="status"');
   });
 
-  it("selects a focusable Camera tab when Browser capture is unsupported", () => {
+  it("offers explicit camera preview and viewing guidance when Browser capture is unsupported", () => {
+    setCopy({ lang: "en", vis: false });
     const html = renderToStaticMarkup(createElement(CaptureSourcePicker, {
       nativeSources: { kind: "browser" }, browserSupported: false,
       onBrowser: () => {}, onCamera: () => {}, onNative: () => {},
@@ -263,6 +264,10 @@ describe("native capture source selection", () => {
     }));
     expect(html).toMatch(/data-source-tab="camera"[^>]*aria-selected="true"[^>]*tabindex="0"/);
     expect(html).not.toContain('data-source-tab="browser"');
+    expect(html).toContain(t("en", "host.sourcePicker.screenUnavailable"));
+    expect(html).toContain(`aria-label="${t("en", "host.camera.enablePreview")}"`);
+    expect(html).not.toContain('lr-source-picker-refresh');
+    expect(html).not.toContain('aria-busy="true"');
   });
 
   it("retains the platform-owned combined source picker", () => {
