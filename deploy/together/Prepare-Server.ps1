@@ -24,4 +24,4 @@ New-Item -ItemType Directory -Path $output -Force | Out-Null
 $zip = Join-Path $output ('Piik-Server-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.zip')
 Write-PiikZip -Directory $server -Path $zip
 Write-Host "Server package: $zip"
-Write-Host 'Upload and extract this ZIP on your server, then run: docker compose up -d --build'
+Write-Host 'Upload and extract this ZIP on your server, then run: docker compose pull && docker compose up -d'

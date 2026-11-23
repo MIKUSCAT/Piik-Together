@@ -1,5 +1,7 @@
 FROM alpine:3.22
 ARG TARGETARCH
+LABEL org.opencontainers.image.source="https://github.com/MIKUSCAT/Piik-Together"
+LABEL org.opencontainers.image.licenses="MIT"
 RUN mkdir /app /data && chown 65532:65532 /data
 WORKDIR /app
 COPY --chmod=0555 bin/linux-${TARGETARCH}/piik-server /app/piik-server

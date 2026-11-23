@@ -90,16 +90,23 @@ func TestPunchAdoptsProvedTupleIntoMediaAndFeedback(t *testing.T) {
 			right, rightPrediction := preparePunch(t, engines[1], nil, "connection", strings.Repeat("42", 32))
 			if scenario.driftSide != 0 {
 				// Real unrelated mappings consume the sequential allocator after survey.
-				// Each allocation receives a STUN response before preparation begins.
-				for range 4 {
+				// Keep each socket open and require 4 new mapped ports so vnet reusing
+				// the closed survey local port cannot collapse the +4 drift under test.
+				basePort := []*PunchPrediction{leftPrediction, rightPrediction}[scenario.driftSide-1].Port
+				seenPorts := make(map[int]bool)
+				for len(seenPorts) < 4 {
 					connection, err := engines[scenario.driftSide-1].listenPacket("udp", engines[scenario.driftSide-1].bindAddress)
 					if err != nil {
 						t.Fatal(err)
 					}
 					t.Cleanup(func() { _ = connection.Close() })
-					if _, err := querySTUNBinding(t.Context(), connection,
-						&net.UDPAddr{IP: net.ParseIP(punchSTUNIP), Port: 3478}, stun.MustBuild(stun.TransactionID, stun.BindingRequest)); err != nil {
+					mapped, err := querySTUNBinding(t.Context(), connection,
+						&net.UDPAddr{IP: net.ParseIP(punchSTUNIP), Port: 3478}, stun.MustBuild(stun.TransactionID, stun.BindingRequest))
+					if err != nil {
 						t.Fatal(err)
+					}
+					if mapped.Port > basePort {
+						seenPorts[mapped.Port] = true
 					}
 				}
 			}

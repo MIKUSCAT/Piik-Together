@@ -3,7 +3,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { cpSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeAppLicenseNotices, writeServerLicenseNotices } from "./package-licenses.mjs";
+import { writeAppLicenseNotices } from "./package-licenses.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const out = resolve(process.argv[2] ?? join(root, "build", "Piik-Together"));
@@ -19,7 +19,7 @@ if (existsSync(join(out, "Settings.json"))) throw new Error("Choose a new output
 
 mkdirSync(out, { recursive: true });
 cpSync(join(root, "deploy/together"), out, { recursive: true,
-  filter: source => !source.endsWith("Settings.json") && !source.endsWith(".env") });
+  filter: source => !source.endsWith("Settings.json") && !source.endsWith(".env") && !source.endsWith("Dockerfile") });
 copyFileSync(join(out, "Settings.example.json"), join(out, "Settings.json"));
 const client = join(out, "Client"), server = join(out, "Server");
 mkdirSync(client, { recursive: true });
@@ -37,14 +37,9 @@ function build(goos, goarch, command, destination, gui = false) {
     child.once("exit", code => code === 0 ? done() : fail(new Error(`Go ${goos}/${goarch} build failed: ${code}`)));
   });
 }
-await Promise.all([
-  build("windows", "amd64", "./cmd/piik-app", join(client, "Piik Together.exe"), true),
-  build("linux", "amd64", "./cmd/piik-server", join(server, "bin/linux-amd64/piik-server")),
-  build("linux", "arm64", "./cmd/piik-server", join(server, "bin/linux-arm64/piik-server")),
-]);
+await build("windows", "amd64", "./cmd/piik-app", join(client, "Piik Together.exe"), true);
 writeAppLicenseNotices(root, client, go, { goos: "windows", goarch: "amd64", captureName: "piik-capture.exe" });
 // The reused native runtime carries its own upstream notices (tunnel helper omitted).
 copyFileSync(join(upstream, "THIRD-PARTY-NOTICES.txt"), join(client, "UPSTREAM-RUNTIME-NOTICES.txt"));
-writeServerLicenseNotices(root, join(server, "THIRD-PARTY-NOTICES.txt"), go, { goos: "linux", goarch: "amd64" });
 writeFileSync(join(out, "BUILD.txt"), `Piik Together, based on Piik v2.8.0\nSource base: ${revision}\nNative runtime: ${readFileSync(join(upstream, "REVISION"), "utf8").trim()}\nBuilt: ${new Date().toISOString()}\n`);
 console.log(`Owner package ready: ${out}`);

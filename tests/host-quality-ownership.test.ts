@@ -153,6 +153,12 @@ function fixture(launchedByClient = true, nativeConnected = true) {
     setRoutePolicy: vi.fn(), setRoom: vi.fn(), activeRouteRevisionRef: ref(1),
     ensureHostSfuRoute: () => route,
     reconcileBoundedMediaChildren, activeHostChildPeerIdsRef: ref<string[]>([]),
+    readCaptureCard: () => null,
+    readPCCapture: () => null,
+    savePCCapture: vi.fn(),
+    resolvePCCapture: () => null,
+    isPackagedHost: () => false,
+    setPackageBlocked: vi.fn(),
   };
   context = createContext({ ...state,
     isCurrentGeneration: (generation: number) => state.activeGenerationRef.current === generation,
@@ -617,7 +623,7 @@ describe("Camera replacement ownership", () => {
     const permission = deferred<never>();
     current.context.captureBrowserSource.mockReturnValue(permission.promise);
     current.context.startBrowserShareFromPicker("camera", "front");
-    expect(current.context.captureBrowserSource).toHaveBeenCalledExactlyOnceWith(original, "camera", "front");
+    expect(current.context.captureBrowserSource).toHaveBeenCalledExactlyOnceWith(original, "camera", "front", "");
     expect(current.client.stopShare).not.toHaveBeenCalled();
     permission.reject(new DOMException("camera rejected", name));
     await vi.waitFor(() => expect(current.sourceSwitchRef.current).toBeNull());

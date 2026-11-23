@@ -1,8 +1,8 @@
 name: piik-together
 services:
   piik:
-    build: .
-    image: piik-together:local
+    # 如服务器拉取 ghcr.io 较慢，可替换为镜像加速地址（如 ghcr.nju.edu.cn/mikuscat/piik-together:latest）
+    image: ghcr.io/mikuscat/piik-together:latest
     restart: unless-stopped
     stop_grace_period: 20s
     environment:

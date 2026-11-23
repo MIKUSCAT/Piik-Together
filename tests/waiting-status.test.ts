@@ -57,9 +57,9 @@ it.each(STATUS_SCENARIOS)("composes feedback from the actual $id state", scenari
     ...overlay.status, message: t("zh", overlay.status.labelKey), waiting: overlay.waiting,
     onActivate: presentation.stage === "needs-play" ? () => {} : undefined,
   }));
-  expect(html.includes('class="lr-waiting-caption"')).toBe(waiting);
+  expect(html.includes('class="lr-glyph lr-spin"')).toBe(waiting && presentation.stage !== "needs-play");
   expect(html).not.toContain('class="lr-brand-loader"');
-  expect(html.includes('class="lr-tv-big')).toBe(presentation.stage === "needs-play");
+  expect(html.includes('<button type="button"')).toBe(presentation.stage === "needs-play");
 });
 
 it("keeps a required action usable even if waiting was requested", () => {
@@ -67,7 +67,7 @@ it("keeps a required action usable even if waiting was requested", () => {
     comic: "tap-to-play", icon: "play", message: "Play", waiting: true, onActivate: () => {},
   }));
   expect(html).toContain('<button type="button"');
-  expect(html).toContain('is-action');
+  expect(html).not.toContain('lr-spin');
   expect(html).not.toContain('class="lr-waiting-caption"');
   expect(html).not.toContain('data-comic-motion="progress"');
 });
@@ -80,12 +80,12 @@ it("keeps the mascot in visual-mode loading without adding a network claim", () 
   expect(html).not.toContain('class="lr-waiting-caption"');
 });
 
-it("keeps a specific visual-mode wait in its comic without a second indicator", () => {
+it("keeps a specific visual-mode wait in its indicator without duplicate decorations", () => {
   setCopy({ vis: true });
   const html = renderToStaticMarkup(createElement(StageOverlay, {
     comic: "waiting-for-host", icon: "moon", message: "Waiting for the Host", waiting: true,
   }));
-  expect(html).toContain('data-comic-motion="progress"');
+  expect(html).toContain('lr-spin');
   expect(html).not.toContain("lr-brand-loader");
   expect(html).not.toContain("lr-tv-big");
   expect(html).not.toContain('class="lr-waiting-caption"');

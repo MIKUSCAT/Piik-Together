@@ -38,7 +38,8 @@ export interface CouchProps {
 }
 
 export function Couch({ host, entries, voiceState, selectedKey, onSelect, participantAction, footerAction }: CouchProps) {
-  const { t } = useCopy();
+  const { t, lang } = useCopy();
+  const comma = lang === "zh" ? "，" : ", ";
   const people = [
     ...(host ? [{ key: host.key, name: host.name, you: host.you, host: true,
       selected: host.selected, onSelect: host.onSelect, controls: host.controls,
@@ -51,8 +52,13 @@ export function Couch({ host, entries, voiceState, selectedKey, onSelect, partic
       {people.map(person => {
         const voice = describeVoiceParticipant(voiceState?.enabled
           ? voiceState.members.find(member => member.peerId === person.key) : undefined);
-        const label = [person.name, person.host && t("common.host"), person.you && t("common.you"),
-          person.status && t(person.status.labelKey), voice.appearance && t(voice.label)].filter(Boolean).join(" · ");
+        const label = [
+          person.name,
+          person.host && person.name !== t("common.host") ? t("common.host") : null,
+          person.you ? t("common.you") : null,
+          person.status ? t(person.status.labelKey) : null,
+          voice.appearance ? t(voice.label) : null,
+        ].filter(Boolean).join(comma);
         const contents = <>
           <span className="together-avatar" aria-hidden="true">{Array.from(person.name)[0] ?? "P"}</span>
           <span>{person.name}</span>

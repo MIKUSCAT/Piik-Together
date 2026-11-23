@@ -24,12 +24,11 @@ it("keeps participant identity and actual Viewer readiness in their descriptions
   }));
   const hostView = render("host");
   expect(hostView).toContain('aria-label="Host name, Host, you"');
-  expect(hostView).toContain('class="lr-pawn-led" data-tone="busy"');
+  expect(hostView).toContain('class="together-person-status" data-tone="busy"');
   const viewerView = render("viewer");
   expect(viewerView).toContain('aria-label="Host name, Host"');
   expect(viewerView).toContain('aria-label="Viewer name, you, Routing"');
-  expect(viewerView).not.toContain('class="lr-pawn-led"');
-  expect(viewerView).toContain('is-waiting');
+  expect(viewerView).toContain('class="together-person-status" data-tone="busy"');
   setCopy({ vis: false });
   const textMode = render("viewer");
   expect(textMode).toContain('aria-label="Host name, Host"');
