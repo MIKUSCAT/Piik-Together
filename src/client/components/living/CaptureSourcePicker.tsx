@@ -383,7 +383,6 @@ export function CaptureSourcePicker({
                 ) : (
                   <span className="lr-source-option-copy">
                     <strong>{t("host.sourcePicker.browser")}</strong>
-                    <small>{t("host.sourcePicker.browserHint")}</small>
                   </span>
                 )}
               </button>

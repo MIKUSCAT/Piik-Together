@@ -1,0 +1,27 @@
+name: piik-together
+services:
+  piik:
+    build: .
+    image: piik-together:local
+    restart: unless-stopped
+    stop_grace_period: 20s
+    environment:
+      PIIK_ENV: production
+      LISTEN_HOST: 0.0.0.0
+      PUBLIC_BASE_URL: https://${PIIK_DOMAIN:?Set PIIK_DOMAIN in .env}
+      SITE_ACCESS_PASSWORD: ${SITE_ACCESS_PASSWORD:?Set SITE_ACCESS_PASSWORD in .env}
+      STUN_URLS: stun:${PIIK_DOMAIN}:3478
+      MAX_VIEWERS_PER_ROOM: "4"
+      SFU_UDP_PORT: "7882"
+      SFU_PUBLIC_IP: ${SFU_PUBLIC_IP:?Set SFU_PUBLIC_IP in .env}
+      SFU_ONLY: ${SFU_ONLY:-false}
+      ROOM_DATABASE_PATH: /data/rooms.sqlite
+      PIIK_LOG_DIR: /data/logs
+    ports:
+      - "127.0.0.1:8787:8787/tcp"
+      - "3478:3478/udp"
+      - "7882:7882/udp"
+    volumes:
+      - piik-data:/data
+volumes:
+  piik-data:

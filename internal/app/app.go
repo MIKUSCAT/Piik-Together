@@ -48,6 +48,7 @@ const (
 )
 
 type Options struct {
+	Profile        *LaunchProfile
 	Site           string
 	SiteSet        bool
 	Local          bool
@@ -174,6 +175,11 @@ func Run(ctx context.Context, options Options) (returnedErr error) {
 	qualityPreference, preferenceErr := appconfig.LoadQualityPreference(configPath)
 	if preferenceErr != nil {
 		slog.Debug("piik-client", "event", "quality-preference-load-failed", diagnostics.Error(preferenceErr))
+	}
+	if options.Profile != nil && options.Profile.Quality != nil {
+		if err := qualityPreference.Save(*options.Profile.Quality); err != nil {
+			return errors.Join(failure.Configuration, err)
+		}
 	}
 	control, err := loopback.Start(ctx, loopback.Options{
 		AllowedOrigins:    allowedOrigins(config.ApprovedSites(), options.Port),
@@ -500,6 +506,9 @@ func openDiagnostics(directory string) (*diagnostics.Recorder, error) {
 func openSite(site string, options Options, controlPort int) {
 	slog.Debug("piik-client", "event", "mode", "mode", "site")
 	targetURL := launcher.EntryURL(site, controlPort)
+	if options.Profile != nil {
+		targetURL = options.Profile.EntryURL(controlPort)
+	}
 	view := consoleView{mode: "site", state: "ready", entry: targetURL}
 	options.console.show(view)
 	if options.console.machine {

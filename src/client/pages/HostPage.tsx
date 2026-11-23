@@ -23,7 +23,8 @@ import {
   type RoutePolicy,
 } from "../../shared/protocol";
 import { AppHeader, LedStrip } from "../components/living/Header";
-import { WelcomeLine } from "../components/living/WelcomeLine";
+import { QuickStart } from "../components/living/QuickStart";
+import { readCaptureCard, readPCCapture, resolvePCCapture, savePCCapture } from "../media/capture-preset";
 import type { CouchEntry } from "../components/living/Couch";
 import { SharingSettings } from "../components/living/SharingSettings";
 import { HostShareControls } from "../components/living/HostShareControls";
@@ -124,6 +125,7 @@ import {
   type HostRoomState,
   mergeAuthenticatedHostRoom,
   readHostRoom,
+  isPackagedHost,
   releaseHostRoom,
   readPreferredRoomId,
   readViewerGrant,
@@ -357,7 +359,7 @@ interface HostPageProps {
 }
 
 type ShareSourceSelection =
-  | { kind: "browser"; source?: BrowserCaptureSource; deviceId?: string }
+  | { kind: "browser"; source?: BrowserCaptureSource; deviceId?: string; audioDeviceId?: string }
   | {
       kind: "native";
       client: NativeClient;
@@ -400,6 +402,7 @@ export function HostPage({
     useState<BrowserVideoCodec | null>(null);
   const shareGenerationRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<HostPhase>("idle");
+  const [packageBlocked, setPackageBlocked] = useState(false);
   const [signalStatus, setSignalStatus] =
     useState<SignalConnectionState>("offline");
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -468,6 +471,12 @@ export function HostPage({
     let mounted = true;
     roomInitializationRef.current = readHostRoom().then((stored) => {
       if (!mounted || roomRef.current !== null) return;
+      if (!stored && isPackagedHost()) {
+        setPackageBlocked(true);
+        setNoticeKey("quick.roomBusy", "signal-failed", "bad");
+        setPhase("error");
+        return;
+      }
       const restored = hostRoomFromStored(stored);
       roomRef.current = restored;
       setRoom(restored);
@@ -1589,7 +1598,7 @@ export function HostPage({
     releaseUnusedNativeClient();
   }
 
-  async function openCaptureSourcePicker(): Promise<void> {
+  async function openCaptureSourcePicker(reuseSaved = false): Promise<void> {
     if (!nativeSourceRequestRef.current) {
       sourcePickerReturnRef.current = {
         id: phase === "live" ? "host-switch-source" : "host-start-share", restore: false,
@@ -1650,6 +1659,13 @@ export function HostPage({
         return;
       }
       nativeSourcePathRef.current = path;
+      const saved = reuseSaved ? readPCCapture() : null;
+      const target = saved && resolvePCCapture(saved.target, sources);
+      if (saved && target && phase !== "live") {
+        void startSharing({ kind: "native", client, target, path,
+          audio: saved.audio, showCaptureBorder: saved.showCaptureBorder });
+        return;
+      }
       setNativeSources({
         kind: "ready",
         sources,
@@ -1721,12 +1737,14 @@ export function HostPage({
 
   function requestSharing(): void {
     setJoiningRoom(false);
-    void openCaptureSourcePicker();
+    void openCaptureSourcePicker(true);
   }
 
   function startBrowserShareFromPicker(source: BrowserCaptureSource, deviceId = ""): void {
-    if (phase === "live") void switchSource(source, deviceId);
-    else void startSharing({ kind: "browser", source, deviceId });
+    const card = readCaptureCard();
+    const audioDeviceId = source === "camera" && card?.video.id === deviceId ? card.audio?.id : undefined;
+    if (phase === "live") void switchSource(source, deviceId, audioDeviceId);
+    else void startSharing({ kind: "browser", source, deviceId, audioDeviceId });
   }
 
   async function loadNativeSourcePreview(
@@ -1763,6 +1781,7 @@ export function HostPage({
     const client = nativeConnection.current;
     const path = nativeSourcePathRef.current;
     if (!client || !path) return;
+    if (!excludeAudio) savePCCapture({ target, audio, showCaptureBorder });
     setShowCaptureBorder(showCaptureBorder);
     if (phase === "live") {
       if (nativeModeRef.current) void switchNativeSource(client, target, audio, path, showCaptureBorder, excludeAudio);
@@ -2785,6 +2804,13 @@ export function HostPage({
         },
         onMessage: (message) => {
           if (signalRef.current !== signal || !isCurrentRoomAuthority(activeRoom)) return;
+          if (isPackagedHost() && (message.type === "room-closed" ||
+            (message.type === "error" && message.code === "INVALID_TOKEN"))) {
+            setPackageBlocked(true);
+            forgetRoom(activeRoom);
+            endRoomSession({ key: "quick.roomMissing" }, "room-not-found");
+            return;
+          }
           if (message.type === "relay-volunteer") {
             if (message.roomCapacity === undefined) return;
             ordinaryRelayCapacityRef.current = message.roomCapacity;
@@ -2844,6 +2870,7 @@ export function HostPage({
             return;
           }
           if (message.type === "error" && message.code === "HOST_ALREADY_CONNECTED") {
+            if (isPackagedHost()) setPackageBlocked(true);
             endRoomSession({ key: hostServerErrorKey(message.code) }, "signal-failed");
             return;
           }
@@ -3012,7 +3039,7 @@ export function HostPage({
         nativeStarted = true;
       } else {
         // This must remain the first awaited operation in the button gesture.
-        captured = await captureBrowserSource(qualitySettingsRef.current, selection.source ?? "browser", selection.deviceId);
+        captured = await captureBrowserSource(qualitySettingsRef.current, selection.source ?? "browser", selection.deviceId, selection.audioDeviceId);
       }
     } catch (error) {
       if (!isCurrentShare(generation, shareGeneration)) {
@@ -3093,6 +3120,7 @@ export function HostPage({
       if (!isCurrentShare(generation, shareGeneration)) return;
       createdRoom = roomRef.current;
       if (!createdRoom) {
+        if (isPackagedHost()) throw new Error(t("quick.roomMissing"));
         const response = await createRoom(
           creationProfileRef.current.codeEntryPolicy,
           creationProfileRef.current.roomPassword,
@@ -3331,7 +3359,7 @@ export function HostPage({
     void switchNativeSource(selection.client, selection.target, audio, selection.path, selection.showCaptureBorder, excludeAudio);
   }
 
-  async function switchSource(source?: BrowserCaptureSource, deviceId = ""): Promise<void> {
+  async function switchSource(source?: BrowserCaptureSource, deviceId = "", audioDeviceId = ""): Promise<void> {
     const generation = activeGenerationRef.current;
     if (
       phase !== "live" ||
@@ -3375,7 +3403,7 @@ export function HostPage({
     let captured: MediaStream;
     try {
       // Like initial capture, changing source must begin in this button gesture.
-      captured = await captureBrowserSource(qualitySettingsRef.current, source, deviceId);
+      captured = await captureBrowserSource(qualitySettingsRef.current, source, deviceId, audioDeviceId);
       if (!isCurrentGeneration(generation) || sourceSwitchRef.current !== token) {
         captured.getTracks().forEach(track => track.stop());
         return;
@@ -3992,7 +4020,7 @@ export function HostPage({
   }
 
   return (
-    <div className="lr-app">
+    <div className="lr-app together-host">
       <AppHeader
         atHome
         onAppConnected={() => {
@@ -4086,43 +4114,18 @@ export function HostPage({
             ) : !stream &&
               (phase === "idle" || phase === "ended" || phase === "error") ? (
               <div className="lr-tv-overlay">
-                {phase === "idle" ? <WelcomeLine /> : null}
-                <div className="lr-entry-actions">
-                  <span className="lr-entry-action">
-                    <Tooltip kind="hint-share-start" text={vis ? undefined : t("host.start")} align="start">
-                      <button
-                        id="host-start-share"
-                        type="button"
-                        className="lr-tv-big is-action is-ripple"
-                        aria-label={t("host.start")}
-                        disabled={roomMutating}
-                        onClick={requestSharing}
-                      >
-                        <Glyph name="cast" size={34} draw="entry-cast" />
-                      </button>
-                    </Tooltip>
-                    {vis ? null : (
-                      <span className="lr-tv-msg">{t("host.start")}</span>
-                    )}
-                  </span>
-                  <span className="lr-entry-action">
-                    <Tooltip kind={joiningRoom ? "hint-collapse" : "hint-join-go"} text={vis ? undefined : t(joiningRoom ? "host.join.hide" : "host.join")} align="end">
-                      <button
-                        type="button"
-                        className="lr-tv-big"
-                        aria-label={t(joiningRoom ? "host.join.hide" : "host.join")}
-                        aria-expanded={joiningRoom}
-                        aria-controls="host-room-code-entry"
-                        onClick={() => setJoiningRoom((current) => !current)}
-                      >
-                        <Glyph name="door" size={30} draw="entry-door" />
-                      </button>
-                    </Tooltip>
-                    {vis ? null : (
-                      <span className="lr-tv-msg">{t("host.join")}</span>
-                    )}
-                  </span>
-                </div>
+                <QuickStart disabled={roomMutating || packageBlocked} onPC={requestSharing}
+                  onChoosePC={() => void openCaptureSourcePicker()}
+                  onCard={(deviceId, audioDeviceId) => {
+                    setJoiningRoom(false);
+                    void startSharing({ kind: "browser", source: "camera", deviceId, audioDeviceId });
+                  }} />
+                {packageBlocked && <button className="quick-link" type="button" onClick={() => window.location.reload()}>{t("common.retry")}</button>}
+                {!launchedByClient && <button type="button" className="quick-link"
+                  aria-expanded={joiningRoom} aria-controls="host-room-code-entry"
+                  onClick={() => setJoiningRoom(current => !current)}>
+                  {t(joiningRoom ? "host.join.hide" : "host.join")}
+                </button>}
                 {joiningRoom ? (
                   <form
                     id="host-room-code-entry"
@@ -4130,7 +4133,6 @@ export function HostPage({
                     style={{ gap: 12 }}
                     onSubmit={joinRoomFromStage}
                   >
-                    {!vis && <span className="lr-cap lr-join-site">{t("join.hint", { site: window.location.host })}</span>}
                     <RoomCodeInput value={joinRoomCode} rejectedAttempt={joinRejectedAttempt} autoFocus
                       onChange={value => { setJoinRoomCode(value); setJoinRejectedAttempt(0); }} />
                     <RoomCodeError attempt={joinRejectedAttempt} theme="stage" />
@@ -4437,7 +4439,7 @@ export function HostPage({
           />
         </div>
 
-        <div className="lr-deck">
+        <div className="lr-deck" hidden={!showAdvanced || isPackagedHost()}>
           <div className="lr-row lr-host-summary-row">
             <div className="lr-row-group lr-host-room-slot">
               <FieldCap k="common.roomCode" />

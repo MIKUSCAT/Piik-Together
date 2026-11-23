@@ -25,6 +25,7 @@ export function StatusIndicator({ status, label, onActivate }: {
       onClick={onActivate}
     >
       <Glyph name={status.icon} size={17} />
+      <span className="together-status-label">{text}</span>
     </button>
   );
   return <Tooltip toggleOnClick={!onActivate} autoOpen={Boolean(onActivate)} kind={hint} tone={status.tone} motion={status.pulse ? "progress" : "still"}

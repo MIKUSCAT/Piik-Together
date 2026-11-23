@@ -40,7 +40,6 @@ type pumpCandidate struct {
 	operation *route.OperationSnapshot
 	plan      route.CandidatePlan
 	guard     route.CandidateCursorGuard
-	revision  int64
 	result    prepareResult
 }
 
@@ -155,7 +154,7 @@ func (r *router) pumpRoom(
 			}
 			candidate = selected
 			candidate.result = r.prepareCandidate(
-				roomID, rm, controller, candidate.operation, candidate.plan, candidate.revision)
+				roomID, rm, controller, candidate.operation, candidate.plan)
 			if yieldAtPrepare {
 				return &candidate
 			}
@@ -242,6 +241,13 @@ func (r *router) pumpRoom(
 			r.sendRouteFailures(roomID, begun.FailedPeerIDs, controller.Revision())
 			continue
 		}
+		// The controller allocates revisions across sharing generations and
+		// rejected attempts; a preparation cannot predict its next value.
+		for _, config := range []*protocol.SfuConfigMessage{prepared.hostSfuConfig, prepared.viewerSfuConfig} {
+			if config != nil {
+				config.Revision = protocol.Int(begun.Operation.Current.Revision)
+			}
+		}
 		rm.pendingMedia = &prepared
 		r.sendPrepareMessages(roomID, controller, begun.Operation, prepared)
 		r.debug(roomID, "candidate-prepare-sent",
@@ -286,11 +292,7 @@ func (r *router) selectCandidate(
 	plan := operation.Candidates[operation.Cursor]
 	guard := cursorGuard(operation, plan)
 	r.resourceWaiters.Delete(roomID)
-	revision := operation.BaseRevision + 1
-	if plan.EndpointTransition.Kind == route.TransitionBoundedGap {
-		revision = operation.BaseRevision + 2
-	}
-	return pumpCandidate{operation: operation, plan: plan, guard: guard, revision: revision}, false
+	return pumpCandidate{operation: operation, plan: plan, guard: guard}, false
 }
 
 // prepareCandidate reserves the exact connection before any client can signal it.
@@ -300,7 +302,6 @@ func (r *router) prepareCandidate(
 	controller *route.Controller,
 	operation *route.OperationSnapshot,
 	plan route.CandidatePlan,
-	revision int64,
 ) prepareResult {
 	snapshot := controller.Snapshot()
 	child, hasChild := r.store.GetConnectedViewer(roomID, operation.ChildPeerID)
@@ -352,7 +353,7 @@ func (r *router) prepareCandidate(
 				reservation:           route.CandidateReservation{Kind: route.ReservationSfuReuse, Edge: edge, Overlap: overlap},
 				publicationGeneration: publication.Generation,
 				viewerSfuConfig: &protocol.SfuConfigMessage{
-					Type: "sfu-config", Revision: protocol.Int(revision),
+					Type:                  "sfu-config",
 					PublicationGeneration: publication.Generation, ConnectionID: connectionID,
 				},
 			}}
@@ -363,14 +364,13 @@ func (r *router) prepareCandidate(
 		return issue(subscriptionResource(fence))
 	}
 
-	return r.prepareNewPublication(roomID, operation, revision, connectionID, shareGeneration, host, overlap)
+	return r.prepareNewPublication(roomID, operation, connectionID, shareGeneration, host, overlap)
 }
 
 // One candidate reserves both publication and first subscription atomically.
 func (r *router) prepareNewPublication(
 	roomID string,
 	operation *route.OperationSnapshot,
-	revision int64,
 	connectionID string,
 	shareGeneration string,
 	host room.ConnectedPeer,
@@ -406,11 +406,11 @@ func (r *router) prepareNewPublication(
 			Kind: route.ReservationSfuCreate, Edge: subscription, Publication: publication, Overlap: overlap,
 		},
 		hostSfuConfig: &protocol.SfuConfigMessage{
-			Type: "sfu-config", Revision: protocol.Int(revision),
+			Type:                  "sfu-config",
 			PublicationGeneration: publicationGeneration, ConnectionID: publicationConnectionID,
 		},
 		viewerSfuConfig: &protocol.SfuConfigMessage{
-			Type: "sfu-config", Revision: protocol.Int(revision),
+			Type:                  "sfu-config",
 			PublicationGeneration: publicationGeneration, ConnectionID: connectionID,
 		},
 	}}

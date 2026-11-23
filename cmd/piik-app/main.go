@@ -7,9 +7,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/TNTcraftHIM/Piik/internal/app"
 	"github.com/TNTcraftHIM/Piik/internal/processsignal"
@@ -25,7 +27,9 @@ func main() {
 
 func run(args []string) int {
 	var options app.Options
+	var profilePath string
 	flags := flag.NewFlagSet("piik-app", flag.ContinueOnError)
+	flags.StringVar(&profilePath, "profile", "", "path to an owner-provisioned launch profile")
 	flags.Func("site", "save and open a Piik Site origin", func(value string) error {
 		options.Site = value
 		options.SiteSet = true
@@ -48,9 +52,32 @@ func run(args []string) int {
 		return 2
 	}
 	options.DisableBrowser = os.Getenv("PIIK_CLIENT_GATE_NO_BROWSER") == "true"
+	explicitProfile := profilePath != ""
+	if profilePath == "" {
+		executable, _ := os.Executable()
+		profilePath = filepath.Join(filepath.Dir(executable), "piik-profile.json")
+	}
+	profile, err := app.LoadLaunchProfile(profilePath)
+	if err != nil && (explicitProfile || !errors.Is(err, os.ErrNotExist)) {
+		reportStartupError(err)
+		return 1
+	}
+	if profile != nil {
+		options.Profile, options.Site, options.SiteSet = profile, profile.Site, true
+		if options.ConfigPath == "" {
+			options.ConfigPath, err = profile.ConfigPath()
+			if err != nil {
+				reportStartupError(err)
+				return 1
+			}
+		}
+	}
 
 	ctx, stop := processsignal.NotifyContext(context.Background())
 	defer stop()
+	if profile != nil && !options.DisableBrowser {
+		return runDesktop(ctx, stop, options)
+	}
 	if options.DisableBrowser {
 		go func() {
 			var input [1]byte

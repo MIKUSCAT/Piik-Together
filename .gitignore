@@ -3,6 +3,12 @@
 .env.*
 !.env.example
 *.local
+*.local.json
+piik-profile.json
+deploy/together/Settings.json
+deploy/together/Client/
+deploy/together/Output/
+deploy/together/Server/bin/
 *.key
 *.p12
 *.pem

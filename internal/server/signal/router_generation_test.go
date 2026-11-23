@@ -117,3 +117,42 @@ func TestStoppedShareReadyCannotCommitReplacementShare(t *testing.T) {
 		t.Fatal("replacement's own first-frame proof did not commit")
 	}
 }
+
+func TestRestartedShareSfuConfigUsesAllocatedRouteRevision(t *testing.T) {
+	h := newRouterHarness(t, routerHarnessOptions{capacity: 2, withSfu: true, fakeTimers: true})
+	created := h.createRoom()
+	host := h.connectHost(created, nil, "", "")
+	viewer := h.connectViewer(created, "restarted-sfu")
+	h.locked(func() {
+		h.router.sfuOnly = true
+		h.doComplete(host)
+		h.doComplete(viewer)
+	})
+	for attempt := 0; attempt < 2; attempt++ {
+		prepared := h.waitPreparedTransport(viewer.sessionID, "sfu")
+		h.locked(func() {
+			for _, sessionID := range []string{host.sessionID, viewer.sessionID} {
+				found := false
+				for _, message := range h.sent[sessionID] {
+					if config, ok := message.(protocol.SfuConfigMessage); ok {
+						found = true
+						if config.Revision != prepared.Revision {
+							t.Fatalf("share %d: SFU config revision %d does not match route %d", attempt+1, config.Revision, prepared.Revision)
+						}
+					}
+				}
+				if !found {
+					t.Fatal("SFU participant did not receive its configuration")
+				}
+			}
+		})
+		if attempt == 0 {
+			h.locked(func() {
+				h.router.stopRoom(created.RoomID)
+				h.sent[host.sessionID], h.sent[viewer.sessionID] = nil, nil
+				h.router.hooks.shareGeneration = func(string) string { return "next_sfu_generation_12345678" }
+				h.doComplete(host)
+			})
+		}
+	}
+}

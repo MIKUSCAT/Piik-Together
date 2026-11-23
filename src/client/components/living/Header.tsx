@@ -2,7 +2,6 @@
 import { useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { browserDebugEnabled, debugError, downloadBrowserDebug, withBrowserDebug } from "../../lib/debug";
-import { BrandMark } from "./BrandMark";
 import { Tooltip } from "./Tooltip";
 import type { ComicKind } from "./Comic";
 import { useCopy } from "../../ui/copy";
@@ -140,7 +139,7 @@ export function HeaderControls({ diagnosticControl, appControl }: { diagnosticCo
     const header = controls.current?.closest(".lr-top") ?? controls.current;
     if (!header) return;
     const resize = () => {
-      const narrow = header.clientWidth <= 600;
+      const narrow = header.clientWidth <= 1440;
       if (!narrow && options.current?.hasAttribute("popover")) {
         const focused = header.ownerDocument.activeElement;
         focusInline.current = options.current.contains(focused) || Boolean(trigger.current?.contains(focused));
@@ -182,7 +181,6 @@ export function HeaderControls({ diagnosticControl, appControl }: { diagnosticCo
   );
   return (
     <div ref={controls} className={`lr-top-right lr-header-controls${compact ? " is-overflow" : ""}`}>
-      {appControl}
       {compact && <span ref={trigger} className="lr-header-more">
         <Btn icon="sliders" title="header.more" hint="hint-advanced" size="compact" popoverTarget={id} controls={id} expanded={open} />
       </span>}
@@ -192,6 +190,7 @@ export function HeaderControls({ diagnosticControl, appControl }: { diagnosticCo
           if (event.target === event.currentTarget) setOpen(event.newState === "open");
         }}>
         <div className="lr-header-settings">
+          {appControl}
           <LanguageControl />
           <Tooltip kind={theme === "dark" ? "hint-theme-light" : "hint-theme-dark"} text={vis ? undefined : themeTitle} place="below" align="end">
             {themeButton}
@@ -226,12 +225,12 @@ export function AppHeader({
         aria-current={atHome ? "page" : undefined}
       >
         {!atHome && <Glyph name="chevron" size={14} className="lr-home-arrow" />}
-        <BrandMark size={34} motion="once" />
+        <span className="together-wordmark">piik<span aria-hidden="true">.</span></span>
       </a>}
       <div className="lr-top-right">
         {led}
         <HeaderControls diagnosticControl={diagnosticControl}
-          appControl={homeHref !== "/client" ? <AppConnectionButton onConnected={onAppConnected} /> : undefined} />
+          appControl={atHome ? <AppConnectionButton onConnected={onAppConnected} /> : undefined} />
       </div>
     </header>
   );

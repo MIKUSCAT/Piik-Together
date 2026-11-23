@@ -55,6 +55,11 @@ const hostRoomStorageSchema = createRoomResponseSchema.pick({
   hostToken: true,
   inviteUrl: true,
 }).strip();
+let packagedHostRoom: z.infer<typeof hostRoomStorageSchema> | null = null;
+const PACKAGED_ROOM_STORAGE_KEY = "piik:packaged-room:v1";
+export function isPackagedHost(): boolean {
+  return packagedHostRoom !== null || readSessionValue(PACKAGED_ROOM_STORAGE_KEY) !== null;
+}
 const hostRoomPreferenceSchema = z
   .object({
     roomId: roomCodeSchema,
@@ -171,11 +176,21 @@ export function takeClientLaunchBootstrap(): ClientLaunchBootstrap {
     "piik-lang",
     "piik-mode",
     "piik-theme",
+    "piik-room",
   ] as const;
   const query = new URLSearchParams(window.location.search);
   const present = keys.some((key) => params.has(key)) || query.has("piik-preferences") || query.has("piik-client-port");
   const accessValue = params.get("client-access");
   const launchedFromFragment = params.get("piik-client") === "1";
+  if (launchedFromFragment && window.location.pathname === "/" && params.has("piik-room")) {
+    try {
+      const parsed = hostRoomStorageSchema.safeParse(JSON.parse(params.get("piik-room")!));
+      if (parsed.success && new URL(parsed.data.inviteUrl).origin === window.location.origin) {
+        packagedHostRoom = parsed.data;
+        writeSessionValue(PACKAGED_ROOM_STORAGE_KEY, parsed.data.roomId);
+      }
+    } catch { /* Invalid profiles cannot supply room authority. */ }
+  }
   if (launchedFromFragment) {
     clientActivatedInPage = true;
     clientPortInPage = parseClientRuntimePort(query.get("piik-client-port"));
@@ -229,6 +244,7 @@ export function takeClientLaunchBootstrap(): ClientLaunchBootstrap {
 }
 
 export function clearHostRoom(keepResumeHint = false): void {
+  if (!keepResumeHint) packagedHostRoom = null;
   const room = readStoredHostRoom("sessionStorage") ?? hostRoomClaim?.room;
   if (room) {
     removeStoredHostRoom("sessionStorage", room);
@@ -246,11 +262,14 @@ export function releaseHostRoom(): void {
 }
 
 export async function readHostRoom(): Promise<HostRoomIdentity | null> {
+  const provisioned = packagedHostRoom;
   const tabRoom = readStoredHostRoom("sessionStorage") ?? hostRoomClaim?.room;
   const room =
-    tabRoom ?? (hostRoomLocks() ? readStoredHostRoom("localStorage") : null);
+    provisioned ? { roomId: provisioned.roomId, hostToken: provisioned.hostToken,
+      canonicalUrl: canonicalViewerUrl(provisioned.inviteUrl) }
+    : tabRoom ?? (hostRoomLocks() ? readStoredHostRoom("localStorage") : null);
   if (!room) return null;
-  const claim = claimHostRoom(room, Boolean(tabRoom));
+  const claim = claimHostRoom(room, Boolean(tabRoom || provisioned));
   const acquired = await claim.ready;
   if (hostRoomClaim !== claim) return null;
   if (!acquired) {
@@ -259,6 +278,10 @@ export async function readHostRoom(): Promise<HostRoomIdentity | null> {
     return null;
   }
   storeHostRoom("sessionStorage", room);
+  if (provisioned) {
+    storeHostRoom("localStorage", room);
+    replaceViewerInvite(provisioned.roomId, provisioned.inviteUrl);
+  }
   return room;
 }
 

@@ -2464,6 +2464,8 @@ export function ViewerPage({
             }
           />
         </div>
+        <details className="together-viewer-settings" open={showConnectionDetails || showTopology || undefined}>
+        <summary><Glyph name="sliders" size={17} />{t("quick.viewerSettings")}</summary>
         <div className="lr-deck">
           <div className="lr-row lr-viewer-summary-row">
             <div className="lr-row-group lr-viewer-room-slot">
@@ -2655,6 +2657,7 @@ export function ViewerPage({
             </Row>
           ) : null}
         </div>
+        </details>
       </main>
     </div>
   );

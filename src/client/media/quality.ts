@@ -285,10 +285,13 @@ export async function captureDisplay(profile: QualityProfile): Promise<MediaStre
 
 export type BrowserCaptureSource = "browser" | "camera";
 
-export async function captureBrowserSource(profile: QualityProfile, source: BrowserCaptureSource, deviceId = ""): Promise<MediaStream> {
+export async function captureBrowserSource(profile: QualityProfile, source: BrowserCaptureSource, deviceId = "", audioDeviceId = ""): Promise<MediaStream> {
   if (source !== "camera") return captureDisplay(profile);
   requireCaptureProfile(profile);
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: false,
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: audioDeviceId ? {
+    deviceId: { exact: audioDeviceId }, channelCount: { ideal: 2 },
+    echoCancellation: false, noiseSuppression: false, autoGainControl: false,
+  } : false,
     video: cameraCaptureConstraints(profile.resolution, profile.maxFramerate, deviceId) });
   const track = stream.getVideoTracks()[0];
   if (!track || track.readyState === "ended") {
@@ -296,6 +299,7 @@ export async function captureBrowserSource(profile: QualityProfile, source: Brow
     throw new Error("Camera capture produced no live video track");
   }
   track.contentHint = "motion";
+  for (const audio of stream.getAudioTracks()) audio.contentHint = "music";
   return stream;
 }
 

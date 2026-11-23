@@ -5,6 +5,7 @@ import { StartupFailure } from "./components/living/StartupFailure";
 
 async function main() {
   await import("./styles.css");
+  await import("./together.css");
   let app = <App />;
   // Room controls share the Popover API; install it before any component mounts.
   if (!("popover" in HTMLElement.prototype)) {

@@ -1,0 +1,7 @@
+{
+  "serverUrl": "https://watch.example.com",
+  "publicIp": "203.0.113.10",
+  "sitePassword": "CHANGE-ME",
+  "quality": "1080p30",
+  "relayOnly": false
+}

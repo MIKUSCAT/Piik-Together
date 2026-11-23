@@ -5,9 +5,8 @@ import type { ViewerStage } from "../../media/viewer-presentation";
 import type { ReactNode } from "react";
 import { Glyph, type GlyphName } from "../../ui/icons";
 import { useCopy } from "../../ui/copy";
-import { Comic, type ComicKind } from "./Comic";
+import type { ComicKind } from "./Comic";
 import type { ComicTone } from "./comic-presentation";
-import { WaitingCaption } from "./WaitingStatus";
 
 export function StageTv({
   hasEntry,
@@ -37,7 +36,7 @@ export function StageTv({
 }
 
 export function StaticNoise() {
-  return <div className="lr-tv-static" aria-hidden="true" />;
+  return null;
 }
 
 export function StageOverlay({
@@ -45,12 +44,9 @@ export function StageOverlay({
   message,
   dim,
   waiting = false,
-  comic,
-  tone,
   progress,
   viewerStage,
   onActivate,
-  still,
 }: {
   icon: GlyphName;
   message: string;
@@ -63,33 +59,21 @@ export function StageOverlay({
   onActivate?: () => void;
   still?: boolean;
 }) {
-  const { vis, lang, t } = useCopy();
+  const { lang, t } = useCopy();
   const routeFailed = viewerStage === "route-failed";
   const guide = useGuideLink(lang, "no-media-route", routeFailed);
   const isWaiting = waiting && !onActivate;
   const content = (
     <>
-      {comic ? <Comic kind={comic} theme="stage" tone={tone}
-        motion={isWaiting ? "progress" : undefined} /> : null}
       <span className="lr-tv-status-content">
-        {(!comic || onActivate) && (
-          <span className={`lr-tv-big${isWaiting ? " lr-spin" : ""}${onActivate ? " is-action is-ripple" : ""}`}>
-            <Glyph name={icon} size={30} draw="stage-overlay" />
-          </span>
-        )}
-        {vis ? progress && (
-          <span className="lr-tv-progress" aria-label={progress}>
-            <Glyph name="refresh" size={17} className="lr-spin" />
-            <span className="lr-tv-msg">{progress}</span>
-          </span>
-        ) : <span className="lr-tv-msg">{message}</span>}
+        <Glyph name={isWaiting ? "refresh" : icon} size={28} className={isWaiting ? "lr-spin" : undefined} />
+        <span className="lr-tv-msg">{progress ?? message}</span>
       </span>
-      {isWaiting && <WaitingCaption still={still} />}
     </>
   );
   if (onActivate) {
     return (
-      <button type="button" className={`lr-tv-overlay${dim ? " is-dim" : ""}${comic ? " has-comic" : ""}`} onClick={onActivate} aria-label={message}>
+      <button type="button" className={`lr-tv-overlay${dim ? " is-dim" : ""}`} onClick={onActivate} aria-label={message}>
         {content}
       </button>
     );
@@ -98,7 +82,7 @@ export function StageOverlay({
     <div
       // Passive state layer: it must not intercept clicks meant for the
       // playback controls it covers. Only the guide link accepts pointer input.
-      className={`lr-tv-overlay is-passive${dim ? " is-dim" : ""}${comic ? " has-comic" : ""}`}
+      className={`lr-tv-overlay is-passive${dim ? " is-dim" : ""}`}
       role="status"
       aria-label={message}
     >

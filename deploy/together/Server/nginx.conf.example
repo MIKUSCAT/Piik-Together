@@ -1,0 +1,69 @@
+# Piik Together Nginx 反向代理参考配置
+# 请将下文中的 watch.example.com 和证书路径替换为你的实际域名和证书路径。
+# 注意：服务器防火墙/安全组仍需放行 UDP 3478 与 UDP 7882，且域名 A 记录不要套 HTTP CDN。
+# 若 Nginx 跑在 Docker 容器内（如 1Panel OpenResty / NPM），请通过容器网络或宿主机网关替换 127.0.0.1:8787。
+# 若在宝塔面板站点配置中使用，请将 map 和 limit_req_zone 放到主配置的 http { ... } 段，或删掉限流两行。
+
+map $http_upgrade $piik_connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+limit_req_zone $binary_remote_addr zone=piik_site_access:10m rate=5r/m;
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name watch.example.com;
+
+    location / {
+        return 301 https://watch.example.com$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name watch.example.com;
+
+    # 请替换为实际 SSL 证书路径
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Frame-Options "DENY" always;
+    # 关键：必须允许本域调用采集卡/摄像头与麦克风，不可改为 ()
+    add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=()" always;
+
+    location ~ ^/rtc(?:/|$) {
+        access_log off;
+        error_log /dev/null crit;
+        return 404;
+    }
+
+    location = /api/site-access {
+        limit_req zone=piik_site_access burst=5 nodelay;
+        limit_req_status 429;
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $piik_connection_upgrade;
+        proxy_read_timeout 5h;
+        proxy_send_timeout 5h;
+        proxy_buffering off;
+    }
+}

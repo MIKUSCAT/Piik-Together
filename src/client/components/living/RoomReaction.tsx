@@ -58,7 +58,7 @@ export function RoomReaction({ reaction, area, now }: {
     const owner = root.ownerDocument;
     const view = owner.defaultView;
     if (!view) return;
-    const pawn = (peer: string) => root.querySelector<SVGSVGElement>(`[data-room-peer="${CSS.escape(peer)}"] .lr-person`);
+    const pawn = (peer: string) => root.querySelector<Element>(`[data-room-peer="${CSS.escape(peer)}"] :is(.together-avatar, .lr-person)`);
     const sender = pawn(reaction.sender.peerId);
     const recipient = pawn(payload.targetPeerId ?? reaction.sender.peerId);
     if (!sender || !recipient) return;
@@ -78,9 +78,8 @@ export function RoomReaction({ reaction, area, now }: {
       const rect = element.getBoundingClientRect();
       // Transforms do not trigger ResizeObserver. Follow the actual head for
       // this event's remaining lifetime, including hover, lean and impact.
-      const from = sender.querySelector(".lr-person-head")?.getBoundingClientRect();
-      const to = recipient.querySelector(".lr-person-head")?.getBoundingClientRect();
-      if (!from || !to) { element.style.visibility = "hidden"; return; }
+      const from = (sender.querySelector(".lr-person-head") ?? sender).getBoundingClientRect();
+      const to = (recipient.querySelector(".lr-person-head") ?? recipient).getBoundingClientRect();
       element.style.setProperty("--from-x", `${from.x - rect.x + from.width / 2}px`);
       element.style.setProperty("--from-y", `${from.y - rect.y + from.height / 2}px`);
       element.style.setProperty("--to-x", `${to.x - rect.x + to.width / 2}px`);
@@ -89,7 +88,7 @@ export function RoomReaction({ reaction, area, now }: {
       element.style.visibility = "visible";
     };
     place();
-    const body = recipient.querySelector<SVGGElement>(".lr-reaction-body");
+    const body = recipient.querySelector(".lr-reaction-body") ?? recipient;
     if (isThrow(payload.reaction) && payload.targetPeerId && body &&
       !view.matchMedia("(prefers-reduced-motion: reduce)").matches && !root.closest("[data-comic-reduced-motion]")) {
       const elapsed = Math.max(0, REACTION_DURATION_MS - (reaction.expiresAt - now()));
