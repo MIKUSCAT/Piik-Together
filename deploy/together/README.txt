@@ -3,7 +3,9 @@ Piik Together
 你来配置
 1. 编辑 Settings.json：服务器网址、公网 IPv4、站点密码。默认 1080p30。
 2. 双击 1-Prepare-Server.cmd，把 Output 中生成的 Piik-Server ZIP 发给朋友部署。
-3. 朋友在服务器解压目录执行 docker compose pull && docker compose up -d，并按 nginx.conf.example 配好 Nginx HTTPS 反代。
+3. 朋友按服务器环境二选一部署：
+   - 宿主机 Nginx：在解压目录执行 docker compose pull && docker compose up -d，并按 nginx.conf.example 配好 HTTPS 反代。
+   - Coolify 面板：新建 Docker Compose Empty，直接粘贴 Server/compose.coolify.yaml，域名填 https://你的域名:8787 并填入环境变量后 Deploy（无需配置 Nginx）。
 4. 网址能正常打开后，双击 2-Make-FriendPackage.cmd。
 5. 把 Output 中的 Piik-Friend ZIP 发给她；Watch.url / Watch.txt 留给自己。
 
@@ -23,7 +25,7 @@ XSS：第一次点「XSS 开播」，按提示点「允许访问设备」，选�
 Linux amd64 或 arm64，Docker Engine 和 Docker Compose v2，以及已配置 HTTPS 证书的 Nginx。
 域名 A 记录直接指向公网 IPv4，不要套 HTTP CDN 代理（例如 Cloudflare 小黄云）。
 放行 TCP 80/443（Nginx）以及 UDP 3478（STUN）和 UDP 7882（SFU）。
-compose.yaml 直接拉取 ghcr.io/mikuscat/piik-together:latest 镜像，仅把网页端绑定在 127.0.0.1:8787；宿主机 Nginx 请参考 nginx.conf.example 代理到 http://127.0.0.1:8787。
+compose.yaml 直接拉取 ghcr.io/mikuscat/piik-together:latest 镜像，仅把网页端绑定在 127.0.0.1:8787（给宿主机 Nginx 反代）；若使用 Coolify 请改用 compose.coolify.yaml，由 Coolify 代理转发到容器 8787 端口。
 若私有仓库的 GHCR 包未设为公开，需在 GitHub Packages 设为 Public 或先用带 read:packages 的 token 登录 ghcr.io；国内服务器若拉取 ghcr.io 较慢，可改用镜像加速地址。
 若 Nginx 本身也在 Docker 容器内（如 1Panel OpenResty / NPM），请通过容器网络或宿主机网关连接 8787。
 务必保留 Permissions-Policy "camera=(self), microphone=(self), geolocation=()"，否则浏览器会拦截采集卡。

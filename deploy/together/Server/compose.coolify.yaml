@@ -1,0 +1,33 @@
+# Coolify Docker Compose 部署模板（新建 Resource -> Docker Compose Empty，粘贴本文件即可）
+# 1. 在服务 Domains 中绑定：https://你的域名:8787
+# 2. 在 Environment Variables 中填写：PIIK_DOMAIN、SITE_ACCESS_PASSWORD、SFU_PUBLIC_IP
+# 3. 服务器安全组/防火墙放行：UDP 3478（STUN）与 UDP 7882（SFU）；TCP 80/443 由 Coolify 代理接管
+services:
+  piik:
+    # 如国内服务器拉取 ghcr.io 较慢，可替换为镜像加速地址（如 ghcr.nju.edu.cn/mikuscat/piik-together:latest）
+    image: ghcr.io/mikuscat/piik-together:latest
+    restart: unless-stopped
+    stop_grace_period: 20s
+    environment:
+      PIIK_ENV: production
+      LISTEN_HOST: 0.0.0.0
+      PUBLIC_BASE_URL: https://${PIIK_DOMAIN:?Set PIIK_DOMAIN}
+      SITE_ACCESS_PASSWORD: ${SITE_ACCESS_PASSWORD:?Set SITE_ACCESS_PASSWORD}
+      STUN_URLS: stun:${PIIK_DOMAIN}:3478
+      MAX_VIEWERS_PER_ROOM: "4"
+      SFU_UDP_PORT: "7882"
+      SFU_PUBLIC_IP: ${SFU_PUBLIC_IP:?Set SFU_PUBLIC_IP}
+      SFU_ONLY: ${SFU_ONLY:-false}
+      ROOM_DATABASE_PATH: /data/rooms.sqlite
+      PIIK_LOG_DIR: /data/logs
+    labels:
+      - "traefik.http.middlewares.piik-headers.headers.customresponseheaders.Permissions-Policy=camera=(self), microphone=(self), geolocation=()"
+    expose:
+      - "8787"
+    ports:
+      - "3478:3478/udp"
+      - "7882:7882/udp"
+    volumes:
+      - piik-data:/data
+volumes:
+  piik-data:
