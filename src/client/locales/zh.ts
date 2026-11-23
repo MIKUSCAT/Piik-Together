@@ -386,6 +386,8 @@ export const zh = {
   "host.sourcePicker.browser": "选择画面",
   "host.sourcePicker.browserHint": "在浏览器中选择来源。如果有分享音频选项，可开启它。",
   "host.sourcePicker.camera": "分享摄像头：{title}",
+  "host.sourcePicker.screenUnavailable": "此浏览器无法共享屏幕。电脑游戏请在电脑端开播，手机观看请打开观看链接。",
+  "host.camera.enablePreview": "启用摄像头预览",
   "host.camera.denied": "未获得摄像头权限，请允许访问后重试。",
   "host.camera.unavailable": "暂时无法使用摄像头，请检查连接，以及是否正被其他应用占用。",
   "host.microphone.settings": "麦克风设置",

@@ -25,7 +25,7 @@ const client = join(out, "Client"), server = join(out, "Server");
 mkdirSync(client, { recursive: true });
 cpSync(join(upstream, "runtime", "native"), join(client, "runtime", "native"), { recursive: true });
 copyFileSync(join(root, "LICENSE"), join(server, "LICENSE"));
-writeFileSync(join(client, "使用说明.txt"), "解压整个文件夹后，双击 Piik Together.exe。\r\n首次选择采集卡画面和声音，之后点 XSS 开播即可。\r\n托盘图标右键可以打开直播间或退出。\r\n", "utf8");
+writeFileSync(join(client, "使用说明.txt"), "解压整个文件夹后，双击 Piik Together.exe。网址和密钥已配置好。\r\n电脑游戏：点「电脑游戏」，选择游戏窗口或屏幕；仅分享游戏画面不需要摄像头。\r\n若选择「浏览器」，再点「选择画面」，选游戏窗口或屏幕，并按需开启共享声音。\r\nXSS：点「XSS 开播」，首次允许访问设备后，选择采集卡的画面和声音；不要选电脑自带摄像头。\r\n直播间点「停止」结束直播；托盘图标右键可以打开直播间或退出。\r\n观看的人使用打包者保留的观看链接，无需点「电脑游戏」开播。\r\n", "utf8");
 const ldflags = `-s -w -X github.com/TNTcraftHIM/Piik/internal/app/buildinfo.Release=v2.8.0 -X github.com/TNTcraftHIM/Piik/internal/app/buildinfo.Revision=${revision}-together`;
 function build(goos, goarch, command, destination, gui = false) {
   mkdirSync(dirname(destination), { recursive: true });
