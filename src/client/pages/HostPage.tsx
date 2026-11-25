@@ -648,6 +648,8 @@ export function HostPage({
   const qualitySettingsRef = useRef<QualitySettings>(qualitySettings);
   const appQualityPreferenceRef = useRef<AppQualityPreference | null>(null);
   const qualityPreferenceEditedRef = useRef(false);
+  const remoteQualityHandlerRef = useRef<((message: Extract<ServerMessage, { type: "quality-settings-request" }>,
+    signal: SignalingClient) => Promise<void>) | null>(null);
   const pendingAppQualityPreferenceRef = useRef<QualitySettings | null>(null);
   const routePolicyRef = useRef<RoutePolicy>(routePolicy);
   const advancedQualityRef = useRef<QualitySettings>(advancedQuality);
@@ -1901,6 +1903,24 @@ export function HostPage({
     void changeQuality(next);
   }
 
+  remoteQualityHandlerRef.current = async (message, signal) => {
+    let status: "applied" | "busy" | "failed" | "unavailable" = "unavailable";
+    const generation = activeGenerationRef.current;
+    if (phase === "live" && generation !== null && signalRef.current === signal &&
+      shareGenerationRef.current === message.shareGeneration && serverShareGenerationRef.current === message.shareGeneration) {
+      if (qualityChangeRef.current || sourceSwitchRef.current) status = "busy";
+      else if (!supportsCaptureProfile(message.qualitySettings, videoLimits, audioBitrateCeiling)) status = "failed";
+      else {
+        await changeQuality(message.qualitySettings);
+        if (isCurrentGeneration(generation) && shareGenerationRef.current === message.shareGeneration) {
+          status = qualitySettingsEqual(qualitySettingsRef.current, message.qualitySettings) ? "applied" : "failed";
+        }
+      }
+    }
+    if (signalRef.current === signal) signal.send({ type: "complete-quality-settings",
+      requestId: message.requestId, shareGeneration: message.shareGeneration, status });
+  };
+
   async function changeQuality(nextProfile: QualitySettings): Promise<void> {
     if (!supportsCaptureProfile(nextProfile, videoLimits, audioBitrateCeiling)) {
       advancedQualityRef.current = qualitySettingsRef.current;
@@ -2804,6 +2824,10 @@ export function HostPage({
         },
         onMessage: (message) => {
           if (signalRef.current !== signal || !isCurrentRoomAuthority(activeRoom)) return;
+          if (message.type === "quality-settings-request") {
+            void remoteQualityHandlerRef.current?.(message, signal);
+            return;
+          }
           if (isPackagedHost() && (message.type === "room-closed" ||
             (message.type === "error" && message.code === "INVALID_TOKEN"))) {
             setPackageBlocked(true);
@@ -2962,6 +2986,7 @@ export function HostPage({
       if (signalRef.current === signal && capabilities.roomInteractions) setInteractionSession(signal.enableRoomInteractions(capabilities.roomReactionIds));
       if (signalRef.current === signal && capabilities.roomVoice) setRoomVoiceSession(signal.enableRoomVoice({ listeningPresence: capabilities.roomVoiceListeningPresence, bitrate: capabilities.roomVoiceBitrate }));
       if (signalRef.current === signal && capabilities.remoteInput) signal.enableRemoteInput();
+      if (signalRef.current === signal && capabilities.qualityControl) signal.enableQualityControl();
       if (signalRef.current === signal && capabilities.coPlayPresence) signal.enableCoPlayPresence();
       if (signalRef.current === signal && capabilities.audioPresence) signal.enableAudioPresence();
     }).catch(() => { /* Optional input does not block sharing. */ });

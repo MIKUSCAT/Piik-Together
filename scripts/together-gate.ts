@@ -12,9 +12,10 @@ const serverPort = await reservePort(), mediaPort = await reservePort(), browser
 const origin = `http://127.0.0.1:${serverPort}`;
 const password = randomBytes(24).toString("base64url");
 const forceRelay = process.env.PIIK_TOGETHER_RELAY !== "false";
-const output = join(root, "build/together-check", forceRelay ? "relay" : "auto");
+const qualityOnly = process.argv.includes("--quality-only");
+const output = join(root, "build/together-check", qualityOnly ? "quality" : forceRelay ? "relay" : "auto");
 const mediaIP = process.env.PIIK_TOGETHER_MEDIA_IP || "127.0.0.1";
-const report: Record<string, unknown> = { forceRelay, stages: [] };
+const report: Record<string, unknown> = { forceRelay, qualityOnly, stages: [] };
 let server: ChildProcessWithoutNullStreams | null = null, native: ChildProcessWithoutNullStreams | null = null;
 let chrome: ChildProcessWithoutNullStreams | null = null, cdp: CdpConnection | null = null;
 let host: PageHandle | null = null;
@@ -25,6 +26,18 @@ let serverError = "", nativePort = 0, nativeOutput = "";
 function stage(name: string) { (report.stages as string[]).push(name); console.log(name); }
 function child(exe: string, args: string[], env = process.env) {
   return spawn(exe, args, { cwd: work, env, stdio: "pipe", windowsHide: true });
+}
+async function launchApp(executable: string, config: string) {
+  nativePort = 0; nativeOutput = "";
+  native = child(executable, ["--config", config], { ...process.env, PIIK_CLIENT_GATE_NO_BROWSER: "true" });
+  native.stderr.resume();
+  native.stdout.on("data", data => {
+    nativeOutput += data.toString();
+    for (const line of nativeOutput.split(/\r?\n/)) {
+      try { const value = JSON.parse(line); if (value.port && value.url) nativePort = value.port; } catch {}
+    }
+  });
+  await waitForSample(async () => nativePort > 0, Boolean, 15_000);
 }
 async function command(exe: string, args: string[]) {
   const process = child(exe, args);
@@ -102,7 +115,7 @@ try {
   await mkdir(clientDir, { recursive: true });
   await cp(join(root, "build/test/piik-app.exe"), join(clientDir, "Piik Together.exe"));
   await cp(join(root, "build/upstream/windows/runtime"), join(clientDir, "runtime"), { recursive: true });
-  await writeFile(join(owner, "Settings.json"), JSON.stringify({ serverUrl: origin, publicIp: "127.0.0.1", sitePassword: password, quality: "1080p60", relayOnly: forceRelay }));
+  await writeFile(join(owner, "Settings.json"), JSON.stringify({ serverUrl: origin, publicIp: "127.0.0.1", sitePassword: password, quality: qualityOnly ? "2160p30" : "1080p60", relayOnly: forceRelay }));
   const packArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(owner, "Make-FriendPackage.ps1")];
   await command("powershell.exe", packArgs);
   const entries = await readdir(join(owner, "Output"), { withFileTypes: true });
@@ -111,15 +124,8 @@ try {
   report.zipCreated = entries.some(item => item.name.endsWith(".zip"));
 
   stage("Start Windows App from its adjacent profile");
-  native = child(join(recipient, "Piik Together.exe"), ["--config", join(work, "app/client.json")], { ...process.env, PIIK_CLIENT_GATE_NO_BROWSER: "true" });
-  native.stderr.resume();
-  native.stdout.on("data", data => {
-    nativeOutput += data.toString();
-    for (const line of nativeOutput.split(/\r?\n/)) {
-      try { const value = JSON.parse(line); if (value.port && value.url) nativePort = value.port; } catch {}
-    }
-  });
-  await waitForSample(async () => nativePort > 0, Boolean, 15_000);
+  const appConfig = join(work, "app/client.json");
+  await launchApp(join(recipient, "Piik Together.exe"), appConfig);
   const appHealth = await fetch(`http://127.0.0.1:${nativePort}/health`).then(response => response.json());
   report.nativeCaptureAvailable = appHealth.nativeMedia?.video;
   const fragment = new URLSearchParams({ "piik-client": "1", "piik-room": JSON.stringify(profile.room),
@@ -129,7 +135,8 @@ try {
   chrome = await launchChrome(process.env.CHROME_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe", browserPort, join(work, "chrome"),
     ["--headless=new", "--no-first-run", "--no-default-browser-check", "--window-size=1440,1000", "--use-fake-device-for-media-stream",
       "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required", "--disable-background-timer-throttling",
-      "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-features=WebRtcHideLocalIpsWithMdns"]);
+      "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-features=WebRtcHideLocalIpsWithMdns",
+      "--allow-loopback-in-peer-connection"]);
   chrome.stdout.resume(); chrome.stderr.resume();
   const version = await waitForVersion(browserPort, chrome);
   cdp = await CdpConnection.connect(version.webSocketDebuggerUrl, Date.now() + 10_000);
@@ -139,9 +146,14 @@ try {
   await shot(host, "host-desktop");
   report.bootstrapConsumed = await js(host, "location.hash === '' && !location.search.includes('piik-client')");
   const context = await cdp.call<{ browserContextId: string }>("Target.createBrowserContext", {}, undefined, Date.now() + 5000);
-  const viewerURL = new URL(profile.room.inviteUrl);
+  const viewerURL = new URL((await readFile(join(owner, "Output/Watch.txt"), "utf8")).trim());
   viewerURL.searchParams.set("debug", "1");
   viewer = await createPage(cdp, viewerURL.toString(), probe, true, context.browserContextId);
+  const guestContext = await cdp.call<{ browserContextId: string }>("Target.createBrowserContext", {}, undefined, Date.now() + 5000);
+  const guest = await createPage(cdp, profile.room.inviteUrl, undefined, true, guestContext.browserContextId);
+  await until(guest, "!!document.querySelector('video')");
+  report.ordinaryInviteHasNoQualityControl = await js(guest, "!document.querySelector('#viewer-quality-toggle')");
+  await cdp.call("Target.disposeBrowserContext", { browserContextId: guestContext.browserContextId }, undefined, Date.now() + 5000);
 
   stage("Select simulated capture card video and stereo game audio");
   await click(host, "#host-start-xss");
@@ -168,9 +180,40 @@ try {
   await shot(viewer, "viewer-phone");
   report.phoneFits = await js(viewer, "document.documentElement.scrollWidth <= innerWidth");
 
+  stage("Apply an owner-only quality edit through the live viewer");
+  await click(viewer, "#viewer-quality-toggle");
+  await until(viewer, "document.querySelectorAll('#viewer-quality-settings .lr-tile').length === 4");
+  await js(viewer, `Array.from(document.querySelectorAll('#viewer-quality-settings .lr-tile'))
+    .find(button => button.getAttribute('aria-label').includes('1080p 30')).click()`);
+  const preferenceBefore = JSON.parse(await readFile(appConfig + ".quality", "utf8"));
+  report.draftDoesNotChangeHost = preferenceBefore.maxBitrate === profile.quality.maxBitrate;
+  await click(viewer, "#viewer-quality-apply");
+  await until(viewer, "document.querySelector('.lr-remote-quality-result')?.textContent.includes('已应用')");
+  await waitForSample(async () => JSON.parse(await readFile(appConfig + ".quality", "utf8")),
+    value => value.maxBitrate === 5_000_000 && value.maxFramerate === 30, 10_000);
+  const chosen = JSON.parse(await readFile(appConfig + ".quality", "utf8"));
+  report.remoteQualityApplied = chosen.resolution.width === 1920;
+  await shot(viewer, "owner-quality-phone");
+  report.qualityPhoneFits = await js(viewer, "document.documentElement.scrollWidth <= innerWidth && Array.from(document.querySelectorAll('#viewer-quality-settings .lr-tile')).every(button => button.getBoundingClientRect().width >= 80)");
+  await cdp.call("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, viewer.sessionId, Date.now() + 5000);
+  await shot(viewer, "owner-quality-desktop");
+
   stage("Stop, reload and start with the remembered capture card");
   await click(host, "#host-stop-share");
   await until(host, "!!document.querySelector('#host-start-xss')");
+  if (qualityOnly) {
+    stage("Restart the App and retain the viewer's applied quality");
+    const previousApp = native!;
+    const exited = new Promise<void>(done => previousApp.once("exit", () => done()));
+    previousApp.kill();
+    await withDeadline(() => exited, Date.now() + 10_000);
+    await launchApp(join(recipient, "Piik Together.exe"), appConfig);
+    const retained = JSON.parse(await readFile(appConfig + ".quality", "utf8"));
+    report.restartKeepsQuality = retained.maxBitrate === 5_000_000 && retained.resolution.width === 1920;
+    if (!report.restartKeepsQuality) throw new Error("Launch profile overwrote an applied quality choice");
+    await cdp.call("Page.navigate", { url: `${origin}/?debug=1&piik-client-port=${nativePort}#${fragment}` }, host.sessionId, Date.now() + 5000);
+    await until(host, "!!document.querySelector('#host-start-xss')");
+  }
   const oldDocument = await js<number>(host, "performance.timeOrigin");
   await cdp.call("Page.reload", {}, host.sessionId, Date.now() + 5000);
   await until(host, `performance.timeOrigin !== ${oldDocument} && document.readyState === 'complete'`);
@@ -179,6 +222,7 @@ try {
   await until(viewer, "(() => { const v = document.querySelector('video'); return v && v.readyState >= 2 && !v.paused && v.currentTime > 1; })()", 40_000);
   report.rememberedCard = !await js(host, "!!document.querySelector('.quick-card')");
 
+  if (!qualityOnly) {
   stage("Stream a native PC display and reuse its saved selection");
   await click(host, "#host-stop-share");
   await click(host, "#host-start-share");
@@ -194,6 +238,18 @@ try {
   await until(host, "!!document.querySelector('#host-stop-share')", 40_000);
   await waitForSample(() => stats(viewer!), value => value.video > 15, 25_000);
   report.rememberedPC = !await js(host, "!!document.querySelector('.lr-source-picker')");
+  }
+
+  stage("Restore the 4K30 preset from the owner viewer");
+  await until(viewer, "!!document.querySelector('#viewer-quality-settings .lr-tile')");
+  await js(viewer, `Array.from(document.querySelectorAll('#viewer-quality-settings .lr-tile'))
+    .find(button => button.getAttribute('aria-label').includes('4K')).click()`);
+  await click(viewer, "#viewer-quality-apply");
+  await until(viewer, "document.querySelector('.lr-remote-quality-result')?.textContent.includes('已应用')");
+  await waitForSample(async () => JSON.parse(await readFile(appConfig + ".quality", "utf8")),
+    value => value.resolution.width === 3840 && value.maxFramerate === 30 && value.maxBitrate === 40_000_000, 10_000);
+  const restored = JSON.parse(await readFile(appConfig + ".quality", "utf8"));
+  report.restored4K30 = restored.degradationPreference === "maintain-resolution";
 
   await command("powershell.exe", packArgs);
   const saved = JSON.parse(await readFile(join(owner, "owner-room.local.json"), "utf8"));
@@ -213,7 +269,9 @@ try {
   await until(denied, "!!document.querySelector('input[type=password]')");
   report.privateAccess = true;
   report.hostErrors = await js(host, "window.__together.errors");
-  if (!report.bootstrapConsumed || !report.phoneFits || !report.rememberedCard || !report.rememberedPC || !report.repackKeepsRoom || !report.missingCardDoesNotCapture) {
+  if (!report.bootstrapConsumed || !report.phoneFits || !report.rememberedCard || (!qualityOnly && !report.rememberedPC) ||
+    !report.repackKeepsRoom || !report.missingCardDoesNotCapture || !report.ordinaryInviteHasNoQualityControl ||
+    !report.draftDoesNotChangeHost || !report.remoteQualityApplied || !report.qualityPhoneFits || !report.restored4K30) {
     throw new Error("One of the package or playback checks failed");
   }
   report.passed = true;

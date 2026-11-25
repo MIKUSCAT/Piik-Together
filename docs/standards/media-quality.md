@@ -166,15 +166,26 @@ only the latest applied choice. Storage failure never fails capture or startup.
 This does not retain capture permission, device/session identity, routing policy
 or microphone activation, and reading settings claims no Native media session.
 
-The three recommended profiles are ceilings, not delivery guarantees:
+The presets are ceilings, not delivery guarantees:
 
 | Profile | Target | Video bitrate ceiling |
 | --- | --- | ---: |
 | `720p30` | 1280x720 at 30 fps | 3 Mbps |
 | `1080p30` | 1920x1080 at 30 fps | 5 Mbps |
 | `1080p60` | 1920x1080 at 60 fps | 8 Mbps |
+| `2160p30` | 3840x2160 at 30 fps, prefer resolution | 40 Mbps |
 
-`1080p30` is the default. The 2.0 contract carries numeric width/height ceilings;
+`1080p30` remains the default for an unconfigured site.
+The private Together package can provision `2160p30` as its initial preference.
+App launch profiles seed a missing preference; restarting preserves the user's
+last applied choice. A room owner watching with the private control invitation
+can submit a quality edit to the active Host. The Host uses the same capture and
+preference owner as its own controls, and only a completed application is
+acknowledged. Viewer drafts require an explicit Apply; playback settings remain
+local to that Viewer. Increasing these ceilings does not guarantee source cadence,
+encoder throughput, bandwidth, or the SFU's selected output.
+
+The 2.0 contract carries numeric width/height ceilings;
 480p, 720p, 1080p, 1440p and 4K are UI shortcuts. Advanced picture settings also
 accept custom even dimensions within the combined implementation bounds below.
 Width and height form one applied edit. A size change caps the requested frame

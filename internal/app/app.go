@@ -176,7 +176,7 @@ func Run(ctx context.Context, options Options) (returnedErr error) {
 	if preferenceErr != nil {
 		slog.Debug("piik-client", "event", "quality-preference-load-failed", diagnostics.Error(preferenceErr))
 	}
-	if options.Profile != nil && options.Profile.Quality != nil {
+	if options.Profile != nil && options.Profile.Quality != nil && qualityPreference.Read() == nil {
 		if err := qualityPreference.Save(*options.Profile.Quality); err != nil {
 			return errors.Join(failure.Configuration, err)
 		}

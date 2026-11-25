@@ -91,6 +91,7 @@ func (s *Server) route(
 			ViewerRouteSelection:       true,
 			AudioPresence:              true,
 			CoPlayPresence:             true,
+			QualityControl:             true,
 			HostRoomSession:            true,
 		})
 		return

@@ -295,6 +295,10 @@ func DecodeServerMessage(data []byte) (ServerMessage, error) {
 		return decodeSfuSignal(data)
 	case "quality-settings":
 		return decodeQualitySettingsMessage(data)
+	case "quality-settings-request":
+		return decodeQualitySettingsRequest(data)
+	case "quality-control-result":
+		return decodeQualityControlResult(data)
 	case "route-policy":
 		return decodeRoutePolicyMessage(data)
 	case "pause-sharing-source":

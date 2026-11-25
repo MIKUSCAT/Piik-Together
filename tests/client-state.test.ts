@@ -535,6 +535,33 @@ describe("client session identity", () => {
     expect(readViewerGrant("8")).toBeNull();
   });
 
+  it("keeps owner quality authority in its tab and removes it on an ordinary invitation", () => {
+    const values = new Map<string, string>();
+    const grant = `${"c".repeat(21)}g`;
+    const token = "owner_token_" + "a".repeat(32);
+    const location = new URL(`https://share.test/r/1234#v=${grant}&q=${token}`);
+    vi.stubGlobal("window", {
+      location,
+      history: { state: null, replaceState: (_state: unknown, _unused: string, url: string) => {
+        location.href = new URL(url, location).href;
+      } },
+      sessionStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key),
+      },
+    });
+    expect(readViewerRoute()).toEqual({ roomId: "1234", viewerGrant: grant, qualityControlToken: token });
+    expect(location.href).toBe("https://share.test/r/1234");
+    expect(readViewerRoute()?.qualityControlToken).toBe(token);
+    location.pathname = "/r/5678";
+    expect(readViewerRoute()).toEqual({ roomId: "5678" });
+    location.href = `https://share.test/r/1234#v=${grant}`;
+    expect(readViewerRoute()).toEqual({ roomId: "1234", viewerGrant: grant });
+    expect(readViewerRoute()).toEqual({ roomId: "1234", viewerGrant: grant });
+    expect([...values.keys()].some(key => key.includes("quality-control"))).toBe(false);
+  });
+
   it("fails malformed Viewer fragments closed without leaking across rooms", () => {
     const values = new Map<string, string>();
     const oldGrant = `${"d".repeat(21)}w`;

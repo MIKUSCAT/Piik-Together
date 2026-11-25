@@ -245,6 +245,7 @@ export const runtimeCapabilitiesSchema = z.object({
   viewerRouteSelection: z.boolean().default(false),
   audioPresence: z.boolean().default(false),
   coPlayPresence: z.boolean().default(false),
+  qualityControl: z.boolean().optional(),
 });
 export type RuntimeCapabilities = z.infer<typeof runtimeCapabilitiesSchema>;
 
@@ -934,6 +935,11 @@ const signalingChallengeSequenceSchema = z
   .max(Number.MAX_SAFE_INTEGER);
 
 export const clientMessageSchema = z.union([
+  z.object({ type: z.literal("subscribe-quality-control") }).strict(),
+  z.object({ type: z.literal("request-quality-settings"), requestId: opaqueIdSchema,
+    token: tokenSchema, shareGeneration: opaqueIdSchema, qualitySettings: qualitySettingsSchema }).strict(),
+  z.object({ type: z.literal("complete-quality-settings"), requestId: opaqueIdSchema,
+    shareGeneration: opaqueIdSchema, status: z.enum(["applied", "busy", "failed", "unavailable"]) }).strict(),
   z.object({ type: z.literal("set-relay-volunteer"), enabled: z.boolean(),
     capacity: z.number().int().min(0).max(MAX_VIEWERS_PER_ROOM_LIMIT),
     settings: z.boolean().optional(), physicalCapacity: z.number().int().min(0).max(MAX_VIEWERS_PER_ROOM_LIMIT).optional(),
@@ -1130,6 +1136,12 @@ const authenticatedMessageSchema = z.union([
 ]);
 
 export const serverMessageSchema = z.union([
+  z.object({ type: z.literal("quality-settings-request"), requestId: opaqueIdSchema,
+    shareGeneration: opaqueIdSchema, qualitySettings: qualitySettingsSchema }).strict(),
+  z.object({ type: z.literal("quality-control-result"), requestId: opaqueIdSchema,
+    status: z.enum(["applied", "busy", "failed", "unavailable", "forbidden", "timeout"]),
+    qualitySettings: qualitySettingsSchema.optional(),
+  }).strict().refine(value => (value.status === "applied") === (value.qualitySettings !== undefined)),
   z.object({ type: z.literal("relay-volunteer"), enabled: z.boolean(),
     capacity: z.number().int().min(0).max(MAX_VIEWERS_PER_ROOM_LIMIT),
     roomCapacity: z.number().int().min(1).max(MAX_VIEWERS_PER_ROOM_LIMIT).optional(),

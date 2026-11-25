@@ -17,6 +17,7 @@ const PRESET_LABELS: Record<QualityProfileId, CopyKey> = {
   "720p30": "host.quality.light",
   "1080p30": "host.quality.hd",
   "1080p60": "host.quality.highFps",
+  "2160p30": "host.quality.ultraHd",
 };
 
 const RESOLUTION_HINTS: Partial<Record<keyof typeof QUALITY_RESOLUTIONS, CopyKey>> = {

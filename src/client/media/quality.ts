@@ -98,6 +98,13 @@ export const QUALITY_PROFILES = {
     degradationPreference: "balanced",
     maxAudioBitrate: 128000,
   },
+  "2160p30": {
+    resolution: { width: 3840, height: 2160 },
+    maxFramerate: 30,
+    maxBitrate: 40_000_000,
+    degradationPreference: "maintain-resolution",
+    maxAudioBitrate: 192000,
+  },
 } as const satisfies Record<string, QualitySettings>;
 export type QualityProfileId = keyof typeof QUALITY_PROFILES;
 
@@ -105,6 +112,7 @@ export const QUALITY_PROFILE_KEYS = {
   "720p30": "host.quality.720p30",
   "1080p30": "host.quality.1080p30",
   "1080p60": "host.quality.1080p60",
+  "2160p30": "host.quality.2160p30",
 } as const satisfies Record<QualityProfileId, CopyKey>;
 
 export const QUALITY_RESOLUTIONS = {

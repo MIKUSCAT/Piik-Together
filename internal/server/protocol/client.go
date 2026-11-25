@@ -268,6 +268,12 @@ func DecodeClientMessage(data []byte) (ClientMessage, error) {
 		return decodeClientRestartRequest(data)
 	case "set-quality-settings":
 		return decodeSetQualitySettings(data)
+	case "subscribe-quality-control":
+		return decodeEmptyClientMessage(data, SubscribeQualityControlMessage{Type: messageType})
+	case "request-quality-settings":
+		return decodeRequestQualitySettings(data)
+	case "complete-quality-settings":
+		return decodeCompleteQualitySettings(data)
 	case "relay-capacity":
 		return decodeRelayCapacity(data)
 	case "route-ready":

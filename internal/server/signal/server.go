@@ -185,6 +185,7 @@ type Server struct {
 	senderQualityRateBySession    map[string]*senderQualityRateWindow
 	// shares keeps generation, settings, route policy and pause intent together.
 	shares                      map[string]roomShare
+	qualityControls             map[string]*pendingQualityControl
 	voices                      map[string]*roomVoice
 	deferredViewerPresenceRooms map[string]struct{}
 
@@ -230,6 +231,7 @@ func New(options Options) (*Server, error) {
 		viewerQualityEvidenceAttempts: map[string]viewerQualityEvidenceAttempt{},
 		senderQualityRateBySession:    map[string]*senderQualityRateWindow{},
 		shares:                        map[string]roomShare{},
+		qualityControls:               map[string]*pendingQualityControl{},
 		deferredViewerPresenceRooms:   map[string]struct{}{},
 	}
 	if s.maxConnections <= 0 || s.maxUnauthenticatedConnections <= 0 ||
@@ -427,6 +429,9 @@ func (s *Server) hasConnectionCapacity() bool {
 func (s *Server) Close(ctx context.Context) error {
 	s.mu.Lock()
 	s.closing = true
+	for roomID := range s.qualityControls {
+		s.finishQualityControl(roomID, "unavailable")
+	}
 	for roomID := range s.voices {
 		s.closeRoomVoice(roomID)
 	}
@@ -1286,6 +1291,14 @@ func (s *Server) handleAuthenticatedMessage(sess *session, authenticated *authen
 			return
 		}
 		s.routePeerAssistedRestart(sess, authenticated, m)
+	case protocol.SubscribeQualityControlMessage:
+		if authenticated.role == protocol.RoleHost {
+			sess.qualityControl = true
+		}
+	case protocol.RequestQualitySettingsMessage:
+		s.requestQualitySettings(sess, authenticated, m)
+	case protocol.CompleteQualitySettingsMessage:
+		s.completeQualitySettings(sess, authenticated, m)
 	case protocol.SetQualitySettingsMessage:
 		if authenticated.role != protocol.RoleHost {
 			s.sendError(sess, "FORBIDDEN", "Only the host may set quality settings")

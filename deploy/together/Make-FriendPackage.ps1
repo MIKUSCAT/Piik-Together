@@ -43,9 +43,10 @@ $quality = switch ($settings.quality) {
     '720p30'  { @{ resolution = @{ width = 1280; height = 720 }; maxFramerate = 30; maxBitrate = 3000000 } }
     '1080p30' { @{ resolution = @{ width = 1920; height = 1080 }; maxFramerate = 30; maxBitrate = 5000000 } }
     '1080p60' { @{ resolution = @{ width = 1920; height = 1080 }; maxFramerate = 60; maxBitrate = 8000000 } }
+    '2160p30' { @{ resolution = @{ width = 3840; height = 2160 }; maxFramerate = 30; maxBitrate = 40000000 } }
 }
-$quality.degradationPreference = 'balanced'
-$quality.maxAudioBitrate = 128000
+$quality.degradationPreference = if ($settings.quality -eq '2160p30') { 'maintain-resolution' } else { 'balanced' }
+$quality.maxAudioBitrate = if ($settings.quality -eq '2160p30') { 192000 } else { 128000 }
 $profile = @{ version = 1; site = $base; password = $settings.sitePassword; room = $room; quality = $quality }
 $template = Join-Path $PSScriptRoot 'Client'
 if (-not (Test-Path -LiteralPath (Join-Path $template 'Piik Together.exe'))) {
@@ -58,7 +59,8 @@ Copy-Item -LiteralPath $template -Destination $staging -Recurse
 Write-PiikText (Join-Path $staging 'piik-profile.json') ($profile | ConvertTo-Json -Depth 6)
 $zip = "$staging.zip"
 Write-PiikZip -Directory $staging -Path $zip -IncludeDirectory $true
-Write-PiikText (Join-Path $output 'Watch.url') ("[InternetShortcut]`r`nURL=$($room.inviteUrl)`r`n")
-Write-PiikText (Join-Path $output 'Watch.txt') ($room.inviteUrl + "`r`n")
+$ownerWatch = $room.inviteUrl + '&q=' + $room.hostToken
+Write-PiikText (Join-Path $output 'Watch.url') ("[InternetShortcut]`r`nURL=$ownerWatch`r`n")
+Write-PiikText (Join-Path $output 'Watch.txt') ($ownerWatch + "`r`n")
 Write-Host "Ready to send: $zip"
 Write-Host "Your viewer link: $(Join-Path $output 'Watch.txt')"

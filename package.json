@@ -29,6 +29,7 @@
     "gate:app-browser-fanout": "tsx scripts/app-browser-fanout-gate.ts",
     "gate:embedded-sfu": "tsx scripts/embedded-sfu-gate.ts",
     "gate:room-voice": "tsx scripts/room-voice-gate.ts",
+    "gate:together": "tsx scripts/together-gate.ts",
     "gate:app-link": "tsx scripts/app-link-gate.ts",
     "gate:peer-topology-loopback": "tsx scripts/peer-assisted-benchmark.ts",
     "gate:sfu-admission": "vitest run tests/sfu-client.test.ts tests/route-transition.test.ts && go test ./internal/server/...",

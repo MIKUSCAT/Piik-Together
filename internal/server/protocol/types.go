@@ -199,6 +199,7 @@ type RuntimeCapabilities struct {
 	ViewerRouteSelection       bool     `json:"viewerRouteSelection,omitempty"`
 	AudioPresence              bool     `json:"audioPresence,omitempty"`
 	CoPlayPresence             bool     `json:"coPlayPresence,omitempty"`
+	QualityControl             bool     `json:"qualityControl,omitempty"`
 	RoomReactionIDs            []string `json:"roomReactionIds,omitempty"`
 }
 
@@ -212,7 +213,7 @@ func (v *RuntimeCapabilities) UnmarshalJSON(data []byte) error {
 	if present == nil {
 		return errors.New("runtime capabilities must be an object")
 	}
-	if err := present.optional("sfu", "sfuOnly", "roomInteractions", "roomVoice", "roomVoiceListeningPresence", "roomVoiceBitrate", "relayVolunteer", "roomRelayCapacity", "hostRoomSession", "natPrediction", "remoteInput", "viewerRouteSelection", "audioPresence", "coPlayPresence", "roomReactionIds"); err != nil {
+	if err := present.optional("sfu", "sfuOnly", "roomInteractions", "roomVoice", "roomVoiceListeningPresence", "roomVoiceBitrate", "relayVolunteer", "roomRelayCapacity", "hostRoomSession", "natPrediction", "remoteInput", "viewerRouteSelection", "audioPresence", "coPlayPresence", "qualityControl", "roomReactionIds"); err != nil {
 
 		return err
 	}
@@ -228,6 +229,7 @@ func (v *RuntimeCapabilities) UnmarshalJSON(data []byte) error {
 		"viewerRouteSelection":       &v.ViewerRouteSelection,
 		"audioPresence":              &v.AudioPresence,
 		"coPlayPresence":             &v.CoPlayPresence,
+		"qualityControl":             &v.QualityControl,
 	} {
 		if value, ok := present[key]; ok {
 			if err := json.Unmarshal(value, target); err != nil {

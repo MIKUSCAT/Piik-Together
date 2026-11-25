@@ -10,8 +10,8 @@ function Read-PiikSettings {
         throw 'Please fill in Settings.json first.'
     }
     $settings.serverUrl = $uri.GetLeftPart([UriPartial]::Authority)
-    if ($settings.quality -notin @('720p30', '1080p30', '1080p60')) {
-        throw 'quality must be 720p30, 1080p30 or 1080p60.'
+    if ($settings.quality -notin @('720p30', '1080p30', '1080p60', '2160p30')) {
+        throw 'quality must be 720p30, 1080p30, 1080p60 or 2160p30.'
     }
     return $settings
 }
