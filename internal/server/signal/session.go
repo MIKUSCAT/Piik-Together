@@ -60,6 +60,7 @@ type session struct {
 	audioPresence              bool
 	coPlayPresence             bool
 	remoteInput                bool
+	qualityControl             bool
 	inputEndpoint              string
 	inputSecret                string
 	nextInteractionAtMs        int64

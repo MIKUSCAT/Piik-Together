@@ -131,16 +131,22 @@ describe("realtime quality controls", () => {
     }
   });
 
-  it("keeps exactly three recommended profiles with 1080p30 as the default", () => {
+  it("offers a 4K30 preset alongside the existing profiles", () => {
     expect(Object.keys(QUALITY_PROFILES)).toEqual([
       "720p30",
       "1080p30",
       "1080p60",
+      "2160p30",
     ]);
     expect(QUALITY_PROFILES["1080p30"]).toMatchObject({
       resolution: { width: 1920, height: 1080 },
       maxFramerate: 30,
       maxBitrate: 5_000_000,
+    });
+    expect(supportsCaptureProfile(QUALITY_PROFILES["2160p30"])).toBe(true);
+    expect(QUALITY_PROFILES["2160p30"]).toMatchObject({
+      resolution: { width: 3840, height: 2160 }, maxFramerate: 30,
+      maxBitrate: 40_000_000, degradationPreference: "maintain-resolution",
     });
   });
 

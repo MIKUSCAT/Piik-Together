@@ -89,6 +89,7 @@ let hostRoomRelease: Promise<void> = Promise.resolve();
 export interface ViewerRoute {
   roomId: string;
   viewerGrant?: string;
+  qualityControlToken?: string;
   /** An invite fragment was present but its grant was unusable. */
   invalidGrant?: true;
 }
@@ -532,22 +533,28 @@ export function readViewerRoute(): ViewerRoute | null {
   // grant, or it would revoke the grant this tab already holds.
   const fragmentMatch = window.location.hash.match(/^#v=(.*)$/);
   if (fragmentMatch) {
-    const viewerGrant = fragmentMatch[1];
+    const ownerMatch = fragmentMatch[1]?.match(/^([A-Za-z0-9_-]{22})&q=([A-Za-z0-9_-]{32,128})$/);
+    const viewerGrant = ownerMatch?.[1] ?? fragmentMatch[1];
+    const qualityControlToken = ownerMatch?.[2];
     const validGrant = isValidViewerGrant(viewerGrant) ? viewerGrant : null;
+    clearQualityControlToken(roomId);
     if (validGrant) {
       writeSessionValue(viewerGrantStorageKey(roomId), validGrant);
+      if (qualityControlToken) writeSessionValue(qualityControlStorageKey(roomId),
+        JSON.stringify({ viewerGrant: validGrant, token: qualityControlToken }));
     } else {
       clearViewerGrant(roomId);
     }
     window.history.replaceState(window.history.state, "", withBrowserDebug(`/r/${roomId}`));
     return validGrant
-      ? { roomId, viewerGrant: validGrant }
+      ? { roomId, viewerGrant: validGrant, ...(qualityControlToken ? { qualityControlToken } : {}) }
       : { roomId, invalidGrant: true };
   }
 
   const storedGrant = readSessionValue(viewerGrantStorageKey(roomId));
   if (storedGrant && isValidViewerGrant(storedGrant)) {
-    return { roomId, viewerGrant: storedGrant };
+    const qualityControlToken = readQualityControlToken(roomId, storedGrant);
+    return { roomId, viewerGrant: storedGrant, ...(qualityControlToken ? { qualityControlToken } : {}) };
   }
   if (storedGrant) {
     clearViewerGrant(roomId);
@@ -635,11 +642,30 @@ export function mergeAuthenticatedHostRoom(
 }
 
 export function clearViewerGrant(roomId: string): void {
+  clearQualityControlToken(roomId);
   try {
     window.sessionStorage.removeItem(viewerGrantStorageKey(roomId));
   } catch {
     // Restricted storage does not change the current in-memory authorization.
   }
+}
+
+function qualityControlStorageKey(roomId: string): string {
+  return `piik:quality-control:${roomId}`;
+}
+
+function clearQualityControlToken(roomId: string): void {
+  try { window.sessionStorage.removeItem(qualityControlStorageKey(roomId)); } catch { /* Optional tab storage. */ }
+}
+
+function readQualityControlToken(roomId: string, viewerGrant: string): string | undefined {
+  try {
+    const saved: unknown = JSON.parse(readSessionValue(qualityControlStorageKey(roomId)) ?? "null");
+    const parsed = z.object({ viewerGrant: viewerGrantSchema, token: hostRoomStorageSchema.shape.hostToken }).strict().safeParse(saved);
+    if (parsed.success && parsed.data.viewerGrant === viewerGrant) return parsed.data.token;
+  } catch { /* Malformed saved authority is unavailable. */ }
+  clearQualityControlToken(roomId);
+  return undefined;
 }
 
 function viewerGrantStorageKey(roomId: string): string {

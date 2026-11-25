@@ -47,6 +47,7 @@ import {
 import { StatusIndicator } from "../components/living/StatusIndicator";
 import { Tooltip } from "../components/living/Tooltip";
 import { PlaybackControls } from "../components/living/PlaybackControls";
+import { RemoteQualitySettings, type QualityControlResult } from "../components/living/RemoteQualitySettings";
 import { RemoteControl } from "../components/living/RemoteControl";
 import { InputRoute } from "../remote-control/input-route";
 import { useTheaterMode } from "../components/living/use-theater-mode";
@@ -141,6 +142,7 @@ import { nativeRelayCapacity } from "../native/wire";
 interface ViewerPageProps {
   roomId: string;
   viewerGrant?: string;
+  qualityControlToken?: string;
   invalidGrant?: boolean;
   launchedByClient?: boolean;
 }
@@ -170,6 +172,7 @@ interface PendingPeerRoute {
 export function ViewerPage({
   roomId,
   viewerGrant,
+  qualityControlToken,
   invalidGrant = false,
   launchedByClient = false,
 }: ViewerPageProps) {
@@ -275,6 +278,10 @@ export function ViewerPage({
     applyScreenBufferRef.current?.(target);
   }
   const signalRef = useRef<SignalingClient | null>(null);
+  const [remoteQuality, setRemoteQuality] = useState<QualitySettings>(DEFAULT_QUALITY_SETTINGS);
+  const [remoteQualityGeneration, setRemoteQualityGeneration] = useState<string | null>(null);
+  const [qualityControlSupported, setQualityControlSupported] = useState<boolean | null>(null);
+  const [qualityControlResult, setQualityControlResult] = useState<QualityControlResult | null>(null);
   const [interactionSession, setInteractionSession] = useState<RoomInteractionSession | null>(null);
   const [roomVoiceSession, setRoomVoiceSession] = useState<RoomVoiceSession | null>(null);
   const roomVoiceSnapshot = useRoomVoiceSnapshot(roomVoiceSession);
@@ -685,6 +692,7 @@ export function ViewerPage({
     };
     setAudioAvailable(null);
     void getRuntimeCapabilities().then(capabilities => {
+      if (active) setQualityControlSupported(capabilities.qualityControl === true);
       if (active && capabilities.audioPresence) signal.enableAudioPresence();
       if (active && capabilities.coPlayPresence) signal.enableCoPlayPresence();
       if (active && capabilities.roomInteractions) setInteractionSession(signal.enableRoomInteractions(capabilities.roomReactionIds));
@@ -703,7 +711,7 @@ export function ViewerPage({
         signal.enableViewerRouteSelection(allowed ? saved : "auto");
         setRouteOptions({ sfu: capabilities.sfu, sfuOnly: capabilities.sfuOnly === true });
       }
-    }).catch(() => { /* Optional room data never blocks viewing. */ });
+    }).catch(() => { if (active) setQualityControlSupported(false); });
     signalRef.current = signal;
     const qualityEvidenceReporter = new ViewerQualityEvidenceReporter(
       (message) => active && signal.send(message),
@@ -1567,6 +1575,11 @@ export function ViewerPage({
       message: ServerMessage,
       authorityToken: number,
     ): Promise<void> {
+      if (message.type === "quality-control-result") {
+        setQualityControlResult(message);
+        if (message.status === "applied" && message.qualitySettings) setRemoteQuality(message.qualitySettings);
+        return;
+      }
       if (message.type === "relay-volunteer") {
         setRelayVolunteerEnabled(message.enabled);
         if (message.roomCapacity !== undefined) {
@@ -1645,6 +1658,8 @@ export function ViewerPage({
         });
         currentQualitySettings = message.qualitySettings;
         currentShareGeneration = message.shareGeneration;
+        setRemoteQuality(message.qualitySettings);
+        setRemoteQualityGeneration(message.shareGeneration);
         void viewerRelay?.updateProfile(currentQualitySettings);
         const route = ensureViewerSfuRoute();
         route.setPaused(sharingPaused);
@@ -1770,6 +1785,7 @@ export function ViewerPage({
       }
       if (message.type === "quality-settings") {
         currentQualitySettings = message.qualitySettings;
+        setRemoteQuality(message.qualitySettings);
         void viewerRelay?.updateProfile(currentQualitySettings);
         return;
       }
@@ -1779,6 +1795,7 @@ export function ViewerPage({
           currentShareGeneration === message.shareGeneration
         ) {
           currentShareGeneration = message.shareGeneration;
+          setRemoteQualityGeneration(message.shareGeneration);
           currentRoutePolicy = message.routePolicy;
           setPeerOnly(message.routePolicy.peerOnly);
         }
@@ -1884,6 +1901,7 @@ export function ViewerPage({
         return;
       }
       if (message.type === "sharing-stopped") {
+        setRemoteQualityGeneration(null);
         setAudioAvailable(null);
         invalidatePresentedMedia();
         currentRouteAssignment = null;
@@ -2440,6 +2458,12 @@ export function ViewerPage({
               />
             )}
           </div>
+          {qualityControlToken && <RemoteQualitySettings value={remoteQuality} generation={remoteQualityGeneration}
+            available={signalStatus === "connected" && pictureActive && remoteQualityGeneration !== null}
+            supported={qualityControlSupported} result={qualityControlResult}
+            onApply={(requestId, qualitySettings) => Boolean(remoteQualityGeneration &&
+              signalRef.current?.send({ type: "request-quality-settings", requestId, token: qualityControlToken,
+                shareGeneration: remoteQualityGeneration, qualitySettings }))} />}
           <RoomInteractions session={interactionSession}
             voiceState={roomVoice}
             voice={roomVoiceSession ? {

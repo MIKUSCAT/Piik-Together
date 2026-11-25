@@ -87,6 +87,13 @@ Three independent authorities exist:
    recovery. Explicit room credential rejection remains terminal.
 2. **Host ownership.** The exact Host token authorizes that room's Host and
    access-management operations. It cannot authorize another room.
+   A private owner watching link may also carry that same Host token in its
+   fragment, separately from the Viewer invitation. It grants the admitted
+   Viewer permission to request changes to the active Host's sharing quality
+   without taking over the Host session. The credential stays in tab storage,
+   is checked for each edit, and is never added to ordinary Viewer invitations.
+   The Host must advertise support, apply the change and acknowledge its result;
+   a room permits one pending edit, retired on stop, disconnect or timeout.
 3. **Viewer invitation.** Every room creates a 128-bit, 22-character base64url
    Viewer grant. It authorizes only the Viewer role for that exact room
    incarnation and bypasses site access and code-entry policy.

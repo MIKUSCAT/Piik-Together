@@ -10,7 +10,9 @@ const out = resolve(process.argv[2] ?? join(root, "build", "Piik-Together"));
 const upstream = resolve(process.argv[3] ?? join(root, "build", "upstream", "windows"));
 const go = process.env.GO_BINARY ?? "go";
 const revision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true }).trim();
-const nativeChanges = execFileSync("git", ["diff", "v2.8.0", "HEAD", "--", "native", "internal/app/nativecapture", "internal/app/nativeaudio"],
+const modified = execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8", windowsHide: true }).trim() !== "";
+const buildRevision = `${revision}-together${modified ? "-working" : ""}`;
+const nativeChanges = execFileSync("git", ["diff", "v2.8.0", "--", "native", "internal/app/nativecapture", "internal/app/nativeaudio"],
   { cwd: root, encoding: "utf8", windowsHide: true });
 if (nativeChanges.trim()) throw new Error("Native helper changed since v2.8.0; build a matching helper before packaging.");
 if (!existsSync(join(upstream, "runtime", "native", "piik-capture.exe"))) throw new Error("Extract the official v2.8.0 Windows App into build/upstream/windows first.");
@@ -26,7 +28,7 @@ mkdirSync(client, { recursive: true });
 cpSync(join(upstream, "runtime", "native"), join(client, "runtime", "native"), { recursive: true });
 copyFileSync(join(root, "LICENSE"), join(server, "LICENSE"));
 writeFileSync(join(client, "使用说明.txt"), "解压整个文件夹后，双击 Piik Together.exe。网址和密钥已配置好。\r\n电脑游戏：点「电脑游戏」，选择游戏窗口或屏幕；仅分享游戏画面不需要摄像头。\r\n若选择「浏览器」，再点「选择画面」，选游戏窗口或屏幕，并按需开启共享声音。\r\nXSS：点「XSS 开播」，首次允许访问设备后，选择采集卡的画面和声音；不要选电脑自带摄像头。\r\n直播间点「停止」结束直播；托盘图标右键可以打开直播间或退出。\r\n观看的人使用打包者保留的观看链接，无需点「电脑游戏」开播。\r\n", "utf8");
-const ldflags = `-s -w -X github.com/TNTcraftHIM/Piik/internal/app/buildinfo.Release=v2.8.0 -X github.com/TNTcraftHIM/Piik/internal/app/buildinfo.Revision=${revision}-together`;
+const ldflags = `-s -w -X github.com/TNTcraftHIM/Piik/internal/app/buildinfo.Release=v2.8.0 -X github.com/TNTcraftHIM/Piik/internal/app/buildinfo.Revision=${buildRevision}`;
 function build(goos, goarch, command, destination, gui = false) {
   mkdirSync(dirname(destination), { recursive: true });
   return new Promise((done, fail) => {
@@ -41,5 +43,5 @@ await build("windows", "amd64", "./cmd/piik-app", join(client, "Piik Together.ex
 writeAppLicenseNotices(root, client, go, { goos: "windows", goarch: "amd64", captureName: "piik-capture.exe" });
 // The reused native runtime carries its own upstream notices (tunnel helper omitted).
 copyFileSync(join(upstream, "THIRD-PARTY-NOTICES.txt"), join(client, "UPSTREAM-RUNTIME-NOTICES.txt"));
-writeFileSync(join(out, "BUILD.txt"), `Piik Together, based on Piik v2.8.0\nSource base: ${revision}\nNative runtime: ${readFileSync(join(upstream, "REVISION"), "utf8").trim()}\nBuilt: ${new Date().toISOString()}\n`);
+writeFileSync(join(out, "BUILD.txt"), `Piik Together, based on Piik v2.8.0\nSource base: ${revision}\nBuild revision: ${buildRevision}\nSource state: ${modified ? "modified local worktree" : "clean"}\nNative runtime: ${readFileSync(join(upstream, "REVISION"), "utf8").trim()}\nBuilt: ${new Date().toISOString()}\n`);
 console.log(`Owner package ready: ${out}`);

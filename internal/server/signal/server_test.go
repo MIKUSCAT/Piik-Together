@@ -732,7 +732,7 @@ func (c *testClient) sendText(text string) {
 	}
 }
 
-func (c *testClient) sendJSON(message map[string]any) {
+func (c *testClient) sendJSON(message any) {
 	c.t.Helper()
 	encoded, err := json.Marshal(message)
 	if err != nil {

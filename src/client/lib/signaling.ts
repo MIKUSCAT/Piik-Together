@@ -82,6 +82,7 @@ function signalUrl(): string {
 
 export class SignalingClient {
   private remoteInputEnabled = false;
+  private qualityControlEnabled = false;
   private audioPresenceEnabled = false;
   private hostAudioAvailable: boolean | null = null;
   private coPlayPresenceEnabled = false;
@@ -135,6 +136,12 @@ export class SignalingClient {
     if (this.stopped || this.identity.role !== "host") return;
     this.remoteInputEnabled = true;
     if (this.authenticatedPeerId) this.send({ type: "subscribe-remote-input" });
+  }
+
+  enableQualityControl(): void {
+    if (this.stopped || this.identity.role !== "host") return;
+    this.qualityControlEnabled = true;
+    if (this.authenticatedPeerId) this.send({ type: "subscribe-quality-control" });
   }
 
   enableCoPlayPresence(): void {
@@ -499,6 +506,7 @@ export class SignalingClient {
           this.roomVoice.subscribeRoom();
         }
         if (this.remoteInputEnabled) this.send({ type: "subscribe-remote-input" });
+        if (this.qualityControlEnabled) this.send({ type: "subscribe-quality-control" });
         // Discovery can complete after the authentication request was sent.
         if (!routeSelectionRequestedAtAuth && this.identity.role === "viewer" && this.identity.routePreference !== undefined) {
           this.setViewerRoutePreference(this.identity.routePreference);

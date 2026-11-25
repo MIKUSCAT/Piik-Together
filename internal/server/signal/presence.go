@@ -125,6 +125,12 @@ func (s *Server) handleDisconnect(sess *session) {
 		return
 	}
 	sess.clearAuthenticationTimer()
+	if authenticated := sess.authenticated; authenticated != nil {
+		if pending := s.qualityControls[authenticated.roomID]; pending != nil &&
+			(pending.host == sess || pending.viewer == sess) {
+			s.finishQualityControl(authenticated.roomID, "unavailable")
+		}
+	}
 	delete(s.senderQualityRateBySession, sess.sessionID)
 	s.sessions.Delete(sess)
 	if s.sessionsByID[sess.sessionID] == sess {
@@ -187,6 +193,7 @@ func (s *Server) handleDisconnect(sess *session) {
 // stopSharing sends sharing-stopped then host-status to each viewer.
 // The share generation deliberately survives.
 func (s *Server) stopSharing(roomID string) {
+	s.finishQualityControl(roomID, "unavailable")
 	if current, ok := s.shares[roomID]; ok {
 		if host, connected := s.store.GetConnectedHost(roomID); connected {
 			if sess := s.sessionsByID[host.SessionID]; sess != nil && sess.authenticated != nil &&
@@ -226,6 +233,7 @@ func (s *Server) abandonRoom(roomID string) error {
 // closeRoom closes the host session first, then
 // viewers in store order, each told room-closed then closed with 1000.
 func (s *Server) closeRoom(closed room.ClosedRoom) {
+	s.finishQualityControl(closed.RoomID, "unavailable")
 	s.closeRoomVoice(closed.RoomID)
 	s.clearRoomGraceTimers(closed.RoomID)
 	s.clearRoomViewerEvidence(closed.RoomID)
